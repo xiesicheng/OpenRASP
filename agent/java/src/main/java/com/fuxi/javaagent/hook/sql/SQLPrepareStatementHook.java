@@ -33,12 +33,15 @@ public class SQLPrepareStatementHook extends AbstractSqlHook {
 
     private String className;
 
+    private SQLStatementHook sqlStatementHook = new SQLStatementHook();
+
     @Override
     public boolean isClassMatched(String className) {
 
         /* MySQL */
         if ("com/mysql/jdbc/PreparedStatement".equals(className)
                 || "com/mysql/cj/jdbc/PreparedStatement".equals(className)) {
+            this.sqlStatementHook.setType(SQL_TYPE_MYSQL);
             this.type = SQL_TYPE_MYSQL;
             this.exceptions = new String[]{"java/sql/SQLException"};
             this.className = className;
@@ -56,18 +59,21 @@ public class SQLPrepareStatementHook extends AbstractSqlHook {
     @Override
     protected MethodVisitor hookMethod(int access, String name, String desc, String signature, String[] exceptions, MethodVisitor mv) {
 
-        return isExecutableSqlMethod(name, desc) ? new AdviceAdapter(Opcodes.ASM5, mv, access, name, desc) {
-            @Override
-            protected void onMethodEnter() {
-                loadThis();
-                getField(Type.getType(className), "originalSql", Type.getType(String.class));
-                loadThis();
-                push(type);
-                invokeStatic(Type.getType(SQLPrepareStatementHook.class),
-                        new Method("checkSQL", "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/String;)V"));
-            }
-        } : mv;
+        if (isExecutableSqlMethod(name, desc)) {
+            return new AdviceAdapter(Opcodes.ASM5, mv, access, name, desc) {
+                @Override
+                protected void onMethodEnter() {
+                    loadThis();
+                    getField(Type.getType(className), "originalSql", Type.getType(String.class));
+                    loadThis();
+                    push(type);
+                    invokeStatic(Type.getType(SQLPrepareStatementHook.class),
+                            new Method("checkSQL", "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/String;)V"));
+                }
+            };
+        }
 
+        return sqlStatementHook.hookMethod(access, name, desc, signature, exceptions, mv);
     }
 
     public boolean isExecutableSqlMethod(String name, String desc) {
