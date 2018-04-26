@@ -10,40 +10,31 @@ var clean = {
     message: '无风险'
 };
 
-function checkContext(context, paramInit, hookName) {
+function checkContext(context, paramInit) {
     function assert(flag) {
         if (!flag) {
             throw new PluginError(flag);
         }
     }
 
-    if (hookName === 'request') {
-        if (/param-encoding/.test(context.path)) {
-            assert(context.parameter.test)
-        } else {
-            assert(!context.parameter.test)
-        }
+    assert(context.method);
+    assert(context.protocol === 'http/1.1');
+    assert(context.server);
+    assert(context.url);
+    assert(context.path);
+    if (paramInit === true) {
+        assert(context.parameter.test[0] === 'a' && context.parameter.test[1] === 'b');
     } else {
-        assert(context.method);
-        assert(context.protocol === 'http/1.1');
-        assert(context.server);
-        assert(context.url);
-        assert(context.path);
-        if (paramInit === true) {
-            assert(context.parameter.test[0] === 'a' && context.parameter.test[1] === 'b');
-        } else {
-            assert(JSON.stringify(context.parameter) === "{}");
-        }
-        assert(context.header['test-test'] === 'Test-Test');
-        assert(context.querystring);
-        assert(context.remoteAddr);
+        assert(JSON.stringify(context.parameter) === "{}");
     }
+    assert(context.header['test-test'] === 'Test-Test');
+    assert(context.querystring);
+    assert(context.remoteAddr);
 }
 
 plugin.register('request', function (params, context) {
-    checkContext(context, true, 'request');
     plugin.log('request', params);
-    if (/request/.test(context.path) || /param-encoding/.test(context.path)) {
+    if (/request/.test(context.path)) {
         return {
             action: 'block'
         }
@@ -51,6 +42,7 @@ plugin.register('request', function (params, context) {
 });
 
 plugin.register('directory', function (params, context) {
+    checkContext(context, true);
     plugin.log('directory', params);
     if (params.path === '/etc') {
         return {
