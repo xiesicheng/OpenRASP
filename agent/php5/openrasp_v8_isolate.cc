@@ -15,9 +15,39 @@
  */
 
 #include "openrasp_v8_bundle.h"
+extern "C"
+{
+    #include "lex.yy.h"
+}
 
 namespace openrasp
 {
+static void v8native_antlr4(const v8::FunctionCallbackInfo<v8::Value> &info)
+{
+    if (info.Length() >= 1 && info[0]->IsString())
+    {
+        v8::String::Utf8Value str(info[0]);
+        char* input = *str;
+        int input_len = str.length();
+        // for (int i = 0; i < input_len; i++)
+        // {
+        //     printf("%02x", (unsigned char)*(input + i));
+        // }
+        lexing(input, input_len);
+
+        int * tokens_pos = flex_get_result();
+        int length = flex_get_result_len();
+
+        v8::Isolate *isolate = info.GetIsolate();
+        v8::Local<v8::Array> arr = v8::Array::New(isolate, length - 1);
+        for (int i = 0; i < length; i++)
+        {
+            v8::Local<v8::Integer> token = v8::Integer::New(isolate, *(tokens_pos + i));
+            arr->Set(i, token);
+        }
+        info.GetReturnValue().Set(arr);
+    }
+}
 Isolate *Isolate::New(Snapshot *snapshot_blob, uint64_t timestamp)
 {
     Isolate::Data *data = new Isolate::Data();
@@ -70,6 +100,13 @@ Isolate *Isolate::New(Snapshot *snapshot_blob, uint64_t timestamp)
     data->timestamp = timestamp;
 
     isolate->v8::Isolate::SetData(0, data);
+    
+    v8::Local<v8::Function> sql_flex = v8::Function::New(isolate, v8native_antlr4);
+    context->Global()
+        ->Get(context, NewV8String(isolate, "RASP"))
+        .ToLocalChecked()
+        .As<v8::Object>()
+        ->Set(NewV8String(isolate, "sql_flex"), sql_flex);
 
     return isolate;
 }

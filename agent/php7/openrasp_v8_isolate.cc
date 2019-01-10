@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <string>
 #include "openrasp_v8_bundle.h"
 extern "C"
 {
