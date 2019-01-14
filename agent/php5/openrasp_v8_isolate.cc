@@ -100,7 +100,7 @@ Isolate *Isolate::New(Snapshot *snapshot_blob, uint64_t timestamp)
     data->timestamp = timestamp;
 
     isolate->v8::Isolate::SetData(0, data);
-    
+
     v8::Local<v8::Function> sql_flex = v8::Function::New(isolate, v8native_antlr4);
     context->Global()
         ->Get(context, NewV8String(isolate, "RASP"))
