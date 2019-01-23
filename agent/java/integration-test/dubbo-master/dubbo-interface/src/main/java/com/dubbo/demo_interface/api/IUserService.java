@@ -6,6 +6,6 @@ package com.dubbo.demo_interface.api;
  */
 public interface IUserService {
 
-    public String select();
+    public String select() throws Exception;
 
 }

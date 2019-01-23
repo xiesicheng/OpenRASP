@@ -12,7 +12,7 @@ import java.sql.*;
 @Service
 public class UserService implements IUserService {
 
-    public String select() {
+    public String select() throws Exception {
         Class.forName("com.mysql.jdbc.Driver");
         Connection conn = DriverManager.getConnection("jdbc:mysql://127.0.0.1/mysql", "root", "");
         Statement stmt = conn.createStatement();
