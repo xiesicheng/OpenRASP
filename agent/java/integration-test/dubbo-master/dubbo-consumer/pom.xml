@@ -80,7 +80,7 @@
     </dependencies>
 
     <build>
-        <finalName>app</finalName>
+        <finalName>dubbo-consumer</finalName>
         <plugins>
             <plugin>
                 <inherited>true</inherited>

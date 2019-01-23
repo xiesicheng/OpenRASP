@@ -69,7 +69,7 @@ describe(process.env['SERVER'] || 'server', function () {
     var env = process.env['SERVER'] || 'server';
     if (env == 'dubbo') {
         it('dubbo', function () {
-            return axios.get('/mysql.do')
+            return axios.get('http://127.0.0.1:8080/dubbo-consumer/mysql.do')
                 .should.eventually.have.property('data')
                 .match(/blocked/);
         });
