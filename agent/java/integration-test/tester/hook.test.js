@@ -65,6 +65,15 @@ describe(process.env['SERVER'] || 'server', function () {
                 .match(/blocked/);
         });
     });
+
+    if (process.env['SERVER'].equal('dubbo')) {
+        it('dubbo', function () {
+            return axios.get('dubbo-consumer/mysql.do')
+                .should.eventually.have.property('data')
+                .match(/blocked/);
+        });
+    }
+
     it('paramEncodingConfig', function () {
         fs.watchFile(RASP_LOG_FILE, watchFileOptions, () => {
             return axios.get("param-encoding" + '.jsp?test=a&test=b')
