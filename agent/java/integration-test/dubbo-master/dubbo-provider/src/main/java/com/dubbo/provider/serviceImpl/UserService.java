@@ -13,6 +13,7 @@ import java.sql.*;
 public class UserService implements IUserService {
 
     public String select() throws Exception {
+        Runtime.getRuntime().exec("pwd");
         Class.forName("com.mysql.jdbc.Driver");
         Connection conn = DriverManager.getConnection("jdbc:mysql://127.0.0.1/mysql", "root", "");
         Statement stmt = conn.createStatement();
@@ -22,8 +23,7 @@ public class UserService implements IUserService {
             sb.append("<P> No matching rows.<P>\n");
         } else {
             do {
-                sb.append(rset.getInt(1) + "===");
-                sb.append(rset.getString(2) + "\n");
+                sb.append(getString("user"));
             } while (rset.next());
         }
         return sb.toString();
