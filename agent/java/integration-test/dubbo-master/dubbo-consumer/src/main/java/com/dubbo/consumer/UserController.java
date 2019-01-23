@@ -16,8 +16,6 @@ public class UserController {
     @Resource
     private IUserService userService;
 
-
-
     @RequestMapping("/mysql")
     public String find(HttpServletRequest request){
         String result = userService.select();
