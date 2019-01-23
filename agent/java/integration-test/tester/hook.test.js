@@ -65,10 +65,9 @@ describe(process.env['SERVER'] || 'server', function () {
                 .match(/blocked/);
         });
     });
-
-    console.log('1111111111111');
     console.log(process.env['SERVER']);
-    if (process.env['SERVER'].contains('dubbo')) {
+    var env = process.env['SERVER'] || 'server';
+    if (env == 'dubbo') {
         it('dubbo', function () {
             return axios.get('dubbo-consumer/mysql.do')
                 .should.eventually.have.property('data')
