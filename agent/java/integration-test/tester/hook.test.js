@@ -66,7 +66,9 @@ describe(process.env['SERVER'] || 'server', function () {
         });
     });
 
-    if (process.env['SERVER'].equal('dubbo')) {
+    console.log('1111111111111');
+    console.log(process.env['SERVER']);
+    if (process.env['SERVER'].contains('dubbo')) {
         it('dubbo', function () {
             return axios.get('dubbo-consumer/mysql.do')
                 .should.eventually.have.property('data')
