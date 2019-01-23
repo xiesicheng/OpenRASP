@@ -18,6 +18,7 @@ public class UserService implements IUserService {
             Connection conn = DriverManager.getConnection("jdbc:mysql://127.0.0.1/mysql", "root", "");
             Statement stmt = conn.createStatement();
             ResultSet rset = stmt.executeQuery ("SELECT * FROM user");
+            System.out.println("1111111111111111111");
             StringBuilder sb = new StringBuilder();
             if (!rset.next()) {
                 sb.append("<P> No matching rows.<P>\n");
