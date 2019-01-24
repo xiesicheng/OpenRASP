@@ -90,12 +90,13 @@ plugin.register('fileUpload', function (params, context) {
 });
 
 plugin.register('sql', function (params, context) {
-    plugin.log(params);
     plugin.log(context);
     plugin.log('sql', params);
-    if (context.protocol === 'dubbo' && params.query === 'SELECT * FROM user') {
-        return {
-            action: 'block'
+    if (context.protocol === 'dubbo') {
+        if (params.query === 'SELECT * FROM user') {
+            return {
+                action: 'block'
+            }
         }
     } else {
         checkContext(context);
