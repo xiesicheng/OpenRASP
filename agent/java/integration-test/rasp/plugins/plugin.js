@@ -80,7 +80,7 @@ plugin.register('writeFile', function (params, context) {
 });
 
 plugin.register('fileUpload', function (params, context) {
-    checkContext(context,true);
+    checkContext(context, true);
     plugin.log('fileUpload', params);
     if (context.body) {
         return {
@@ -92,13 +92,20 @@ plugin.register('fileUpload', function (params, context) {
 plugin.register('sql', function (params, context) {
     plugin.log(params);
     plugin.log(context);
-    checkContext(context);
     plugin.log('sql', params);
-    if (params.query === 'SELECT * FROM user') {
+    if (context.protocol === 'dubbo' && params.query === 'SELECT * FROM user') {
         return {
             action: 'block'
         }
+    } else {
+        checkContext(context);
+        if (params.query === 'SELECT * FROM user') {
+            return {
+                action: 'block'
+            }
+        }
     }
+
 });
 
 plugin.register('command', function (params, context) {
