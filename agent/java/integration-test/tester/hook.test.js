@@ -65,7 +65,6 @@ describe(process.env['SERVER'] || 'server', function () {
                 .match(/blocked/);
         });
     });
-    console.log(process.env['SERVER']);
     var env = process.env['SERVER'] || 'server';
     if (env == 'dubbo') {
         it('dubbo', function () {
