@@ -12,6 +12,6 @@
 </head>
 <body>
 <h2>Hello World!</h2>
-<a href="find.do">查询</a><br>
+<a href="mysql.do">查询</a><br>
 </body>
 </html>

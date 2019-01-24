@@ -23,7 +23,7 @@ public class UserService implements IUserService {
             sb.append("<P> No matching rows.<P>\n");
         } else {
             do {
-                sb.append(getString("user"));
+                sb.append(rset.getString("user"));
             } while (rset.next());
         }
         return sb.toString();
