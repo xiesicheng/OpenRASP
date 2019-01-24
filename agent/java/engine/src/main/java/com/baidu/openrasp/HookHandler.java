@@ -345,9 +345,11 @@ public class HookHandler {
         }
         if (requestCache.get() != null) {
             StringBuffer sb = requestCache.get().getRequestURL();
-            String url = sb.substring(sb.indexOf("://") + 3);
-            if (HookWhiteModel.isContainURL(type.getCode(), url)) {
-                return;
+            if (sb != null) {
+                String url = sb.substring(sb.indexOf("://") + 3);
+                if (HookWhiteModel.isContainURL(type.getCode(), url)) {
+                    return;
+                }
             }
         }
         doPolicyCheckWithoutRequest(type, params);
