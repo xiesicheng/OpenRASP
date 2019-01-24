@@ -70,7 +70,7 @@ describe(process.env['SERVER'] || 'server', function () {
         it('dubbo', function () {
             return axios.get('http://127.0.0.1:8080/dubbo-consumer/mysql.do')
                 .then(rst = > {
-                const content = require('fs').readFileSync(PLUGIN_LOG).toString();
+                const content = require('fs').readFileSync(PLUGIN_LOG).toString()
                 console.log(content)
                 console.log(rst.data)
         })

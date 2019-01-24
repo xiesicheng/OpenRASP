@@ -90,9 +90,11 @@ plugin.register('fileUpload', function (params, context) {
 });
 
 plugin.register('sql', function (params, context) {
+    plugin.log(params);
     checkContext(context);
     plugin.log('sql', params);
     if (params.query === 'SELECT * FROM user') {
+        plugin.log(context);
         return {
             action: 'block'
         }
