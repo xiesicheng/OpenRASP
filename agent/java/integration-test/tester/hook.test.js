@@ -24,6 +24,8 @@ axios.defaults.transformResponse = []
 
 describe(process.env['SERVER'] || 'server', function () {
     before(function () {
+        const content = require('fs').readFileSync(SERVER_HOME+'logs/catalina.out').toString();
+        console.log(content);
         this.timeout(1000 * 60 * 2);
         axios.defaults.baseURL = 'http://127.0.0.1:8080/app';
         let chain = Promise.reject();
@@ -52,13 +54,8 @@ describe(process.env['SERVER'] || 'server', function () {
         });
         return axios.post('fileUpload' + '.jsp?test=a&test=b', form, {
             headers: form.getHeaders()
-        }).then(rst => {
-            const content = require('fs').readFileSync(RASP_LOG_FILE).toString()
-            console.log(content)
-        console.log(rst.data)
-               })
-            // .should.eventually.have.property('data')
-            // .match(/blocked/);
+        }).should.eventually.have.property('data')
+            .match(/blocked/);
     });
     let checkPoints = ['command', 'deserialization', 'directory',
         'ognl', 'readFile', 'request', 'writeFile', 'xxe', 'jstlImport', 'sqlite', 'postgresql', 'mysql','http-commonclient','http-httpclient','http-urlconnection',

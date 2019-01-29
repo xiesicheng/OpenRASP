@@ -15,5 +15,3 @@ cp app.war ${SERVER_HOME}/webapps/
 java -jar RaspInstall.jar -install ${SERVER_HOME}
 
 sh ${SERVER_HOME}/bin/startup.sh
-
-cat ${SERVER_HOME}/logs/catalina.out
