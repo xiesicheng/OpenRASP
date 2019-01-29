@@ -55,7 +55,6 @@ public class TomcatInstaller extends BaseStandardInstaller {
     @Override
     protected String modifyStartScript(String content) throws RaspError {
         boolean versionFlag = checkTomcatVersion();
-        boolean jdk_java_options = false;
         int modifyConfigState = NOTFOUND;
         StringBuilder sb = new StringBuilder();
         Scanner scanner = new Scanner(content);
@@ -63,28 +62,20 @@ public class TomcatInstaller extends BaseStandardInstaller {
             String line = scanner.nextLine();
             if (FOUND == modifyConfigState) {
                 sb.append(OPENRASP_CONFIG);
+                //jdk版本大于8加入依赖包
+                if (versionFlag){
+                    sb.append("\n");
+                    sb.append(JDK_JAVA_OPTIONS);
+                }
                 modifyConfigState = DONE;
             }
             if (DONE == modifyConfigState) {
-                if (OPENRASP_REGEX.matcher(line).matches()) {
+                if (OPENRASP_REGEX.matcher(line).matches() || JDK_JAVA_OPTIONS_REGEX.matcher(line).matches()) {
                     continue;
                 }
             }
             if (line.startsWith(":setArgs") && NOTFOUND == modifyConfigState) {
                 modifyConfigState = FOUND;
-            }
-            //添加jdk9以上的版本的依赖
-            if (line.startsWith("set") && line.contains("JDK_JAVA_OPTIONS=") && versionFlag) {
-                if (!jdk_java_options) {
-                    jdk_java_options = true;
-                    sb.append(line).append("\n");
-                    sb.append(JDK_JAVA_OPTIONS);
-                    continue;
-                } else {
-                    if (JDK_JAVA_OPTIONS_REGEX.matcher(line).matches()) {
-                        continue;
-                    }
-                }
             }
             sb.append(line).append(LINE_SEP);
         }

@@ -37,7 +37,8 @@ public class TomcatInstaller extends BaseStandardInstaller {
         "### BEGIN OPENRASP - DO NOT MODIFY ###\n" +
         "\tJAVA_OPTS=\"-javaagent:${CATALINA_HOME}/rasp/rasp.jar ${JAVA_OPTS}\"\n" +
         "### END OPENRASP ###\n";
-    private static String JDK_JAVA_OPTIONS = "JDK_JAVA_OPTIONS=\"$JDK_JAVA_OPTIONS --add-opens=java.base/jdk.internal.loader=ALL-UNNAMED\"\n";
+    private static String JDK_JAVA_OPTIONS = "JDK_JAVA_OPTIONS=\"$JDK_JAVA_OPTIONS --add-opens=java.base/jdk.internal.loader=ALL-UNNAMED\"\n" +
+            "export JDK_JAVA_OPTIONS\n";
     private static Pattern OPENRASP_REGEX = Pattern.compile(".*(\\s*OPENRASP\\s*|JAVA_OPTS.*/rasp/).*");
     private static Pattern JDK_JAVA_OPTIONS_REGEX = Pattern.compile("^JDK_JAVA_OPTIONS.*jdk\\.internal\\.loader.*");
 
@@ -69,7 +70,6 @@ public class TomcatInstaller extends BaseStandardInstaller {
     @Override
     protected String modifyStartScript(String content) throws RaspError {
         boolean versionFlag = checkTomcatVersion();
-        boolean jdk_java_options = false;
         StringBuilder sb = new StringBuilder();
         Scanner scanner = new Scanner(content);
         int modifyConfigState = NOTFOUND;
@@ -82,14 +82,11 @@ public class TomcatInstaller extends BaseStandardInstaller {
                 modifyConfigState = FOUND;
                 sb.append(line).append("\n");
                 sb.append(OPENRASP_CONFIG);
-                continue;
-            }
-
-            //添加jdk9以上的版本的依赖
-            if (line.startsWith("JDK_JAVA_OPTIONS=") && !line.contains("export") && versionFlag && !jdk_java_options) {
-                jdk_java_options = true;
-                sb.append(line).append("\n");
-                sb.append(JDK_JAVA_OPTIONS);
+                //jdk版本8以上插入依赖包
+                if (versionFlag){
+                    sb.append("\n");
+                    sb.append(JDK_JAVA_OPTIONS);
+                }
                 continue;
             }
 
