@@ -24,7 +24,7 @@ axios.defaults.transformResponse = []
 
 describe(process.env['SERVER'] || 'server', function () {
     before(function () {
-        const content = require('fs').readFileSync(SERVER_HOME+'logs/catalina.out').toString();
+        const content = require('fs').readFileSync(SERVER_HOME+'/logs/catalina.out').toString();
         console.log(content);
         this.timeout(1000 * 60 * 2);
         axios.defaults.baseURL = 'http://127.0.0.1:8080/app';
