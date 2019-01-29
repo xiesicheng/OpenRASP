@@ -109,7 +109,10 @@ plugin.register('sql', function (params, context) {
 });
 
 plugin.register('command', function (params, context) {
+    plugin.log(params);
+    plugin.log(context);
     checkContext(context);
+    plugin.log('1111111111111111111');
     plugin.log('command', params);
     if (params.command === 'pwd') {
         return {
