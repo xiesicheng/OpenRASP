@@ -91,9 +91,6 @@ public class TomcatInstaller extends BaseStandardInstaller {
         if (NOTFOUND == modifyConfigState) {
             throw new RaspError(E10001 + "\":setArgs\"");
         }
-        if (versionFlag && !jdk_java_options) {
-            throw new RaspError(E10001 + "JDK_JAVA_OPTIONS=");
-        }
         return sb.toString();
     }
 
