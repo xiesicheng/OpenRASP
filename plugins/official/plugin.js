@@ -1,4 +1,4 @@
-const plugin_version = '2019-0117-1630'
+const plugin_version = '2019-0118-1830'
 const plugin_name    = 'official'
 
 /*
@@ -53,6 +53,7 @@ var algorithmConfig = {
         pre_filter: 'select|file|from|;',
         pre_enable: false,
     },
+
     // SQL注入算法#2 - 语句规范
     sql_policy: {
         name:    '算法2 - 拦截异常SQL语句',
@@ -102,7 +103,7 @@ var algorithmConfig = {
 
             // 盲注函数，如有误报可删掉一些函数
             hex:              true,
-            char:             true,
+            char:             false,
             chr:              true,
             mid:              true,
             ord:              true,
@@ -110,6 +111,13 @@ var algorithmConfig = {
             bin:              true
         }
     },
+
+    sql_exception: {
+        name:      '算法3 - 检测SQL语句异常',
+        action:    'log',
+        reference: 'https://rasp.baidu.com/doc/dev/official.html#sql-exception'
+    },
+
     // SSRF - 来自用户输入，且为内网地址就拦截
     ssrf_userinput: {
         name:   '算法1 - 用户输入匹配算法',
@@ -117,7 +125,7 @@ var algorithmConfig = {
     },
     // SSRF - 是否允许访问 aws metadata
     ssrf_aws: {
-        name:   '算法2 - 拦截 AWS metadata 访问',
+        name:   '算法2 - 拦截 AWS/Aliyun metadata 访问',
         action: 'block'
     },
     // SSRF - 是否允许访问 dnslog 地址
@@ -316,8 +324,8 @@ var algorithmConfig = {
     // 命令注入 - 常见命令
     command_common: {
         name:    '算法3 - 识别常用渗透命令（探针）',
-        action:  'block',
-        pattern: 'cat.*/etc/passwd'
+        action:  'log',
+        pattern: 'cat.*/etc/passwd|nc.{1,30}-e.{1,100}/bin/(?:ba)?sh|bash\\s-.{0,4}i.{1,20}/dev/tcp/|subprocess.call\\(.{0,6}/bin/(?:ba)?sh|fsockopen\\(.{1,50}/bin/(?:ba)?sh|perl.{1,80}socket.{1,120}open.{1,80}exec\\(.{1,5}/bin/(?:ba)?sh|([\\|\\&`;\\x0d\\x0a]|$\\([^\\(]).{0,3}(ping|nslookup|curl|wget|mail).{1,10}[a-zA-Z0-9_\\-]{1,15}\\.[a-zA-Z0-9_\\-]{1,15}'
     },
     // 命令执行 - 是否拦截所有命令执行？如果没有执行命令的需求，可以改为 block，最大程度的保证服务器安全
     command_other: {
@@ -821,18 +829,20 @@ if (RASP.get_jsengine() !== 'v8') {
             })
 
             if(Object.keys(json_parameters).length > 0){
-                jsons = [json_parameters]
+                var jsons = [ [json_parameters, "input_json"] ]
                 while(jsons.length > 0 && reason === false){
-                    json_obj = jsons.pop()
+                    var json_arr = jsons.pop()
+                    var crt_json_key = json_arr[1]
+                    var json_obj = json_arr[0]
                     for (item in json_obj){
                         if(typeof json_obj[item] == "string"){
-                            reason = _run([json_obj[item]], "json input")
+                            reason = _run([json_obj[item]], crt_json_key + "->" + item)
                             if(reason !== false){
                                 break;
                             }
                         }
                         else if(typeof json_obj[item] == "object"){
-                            jsons.push(json_obj[item])
+                            jsons.push([json_obj[item], crt_json_key + "->" + item])
                         }
                     }
                 }
@@ -1003,10 +1013,10 @@ if (RASP.get_jsengine() !== 'v8') {
             }
         }
 
-        // 算法3 - 检测AWS私有地址
+        // 算法3 - 检测 AWS/Aliyun 私有地址
         if (algorithmConfig.ssrf_aws.action != 'ignore')
         {
-            if (hostname == '169.254.169.254')
+            if (hostname == '169.254.169.254' || hostname == '100.100.100.200')
             {
                 return {
                     action:     algorithmConfig.ssrf_aws.action,

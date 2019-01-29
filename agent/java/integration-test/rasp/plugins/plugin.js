@@ -90,7 +90,6 @@ plugin.register('fileUpload', function (params, context) {
 });
 
 plugin.register('sql', function (params, context) {
-    plugin.log(context);
     plugin.log('sql', params);
     if (context.protocol === 'dubbo') {
         if (params.query === 'SELECT * FROM user') {

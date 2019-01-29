@@ -25,53 +25,40 @@ import javassist.CtClass;
 import javassist.NotFoundException;
 
 import java.io.IOException;
-import java.net.URI;
+import java.net.URL;
 
 /**
- * Created by tyy on 17-12-8.
- * <p>
- * httpclient 框架的请求 http 的 hook 点
+ * @description: weblogic UDDI
+ * @author: anyang
+ * @create: 2019/01/28 11:21
  */
 @HookAnnotation
-public class HttpClientHook extends AbstractSSRFHook {
+public class WeblogicUDDIHook extends AbstractSSRFHook {
 
-    /**
-     * (none-javadoc)
-     *
-     * @see com.baidu.openrasp.hook.AbstractClassHook#isClassMatched(String)
-     */
     @Override
     public boolean isClassMatched(String className) {
-        return "org/apache/http/client/methods/HttpRequestBase".equals(className);
+        return "weblogic/uddi/client/service/UDDIService".equals(className);
     }
 
-    /**
-     * (none-javadoc)
-     *
-     * @see com.baidu.openrasp.hook.AbstractClassHook#hookMethod(CtClass)
-     */
     @Override
     protected void hookMethod(CtClass ctClass) throws IOException, CannotCompileException, NotFoundException {
-        String src = getInvokeStaticSrc(HttpClientHook.class, "checkHttpUri",
-                "$1", URI.class);
-        insertBefore(ctClass, "setURI", "(Ljava/net/URI;)V", src);
+        String src = getInvokeStaticSrc(WeblogicUDDIHook.class, "getURL", "$1", String.class);
+        insertBefore(ctClass, "setURL", null, src);
     }
 
-    public static void checkHttpUri(URI uri) {
-        String url = null;
-        String hostName = null;
-        try {
-            if (uri != null) {
-                url = uri.toString();
-                hostName = uri.toURL().getHost();
+    public static void getURL(String weblogicURL) {
+        if (weblogicURL != null) {
+            URL url = null;
+            try {
+                url = new URL(weblogicURL);
+            } catch (Exception e) {
+                String message = e.getMessage();
+                int errorCode = ErrorType.HOOK_ERROR.getCode();
+                HookHandler.LOGGER.warn(CloudUtils.getExceptionObject(message, errorCode), e);
             }
-        } catch (Throwable t) {
-            String message = t.getMessage();
-            int errorCode = ErrorType.HOOK_ERROR.getCode();
-            HookHandler.LOGGER.warn(CloudUtils.getExceptionObject(message, errorCode),t);
-        }
-        if (hostName != null) {
-            checkHttpUrl(url, hostName, "httpclient");
+            if (url != null) {
+                checkHttpUrl(weblogicURL, url.getHost(), "weblogic_UDDI");
+            }
         }
     }
 }
