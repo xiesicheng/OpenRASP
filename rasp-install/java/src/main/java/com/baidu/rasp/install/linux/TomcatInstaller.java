@@ -73,6 +73,7 @@ public class TomcatInstaller extends BaseStandardInstaller {
         StringBuilder sb = new StringBuilder();
         Scanner scanner = new Scanner(content);
         int modifyConfigState = NOTFOUND;
+        boolean isDelete = false;
 
         while (scanner.hasNextLine()) {
             String line = scanner.nextLine();
@@ -91,12 +92,17 @@ public class TomcatInstaller extends BaseStandardInstaller {
                 continue;
             }
 
-            // 删除已经存在的配置项
-            if (OPENRASP_REGEX.matcher(line).matches() || JDK_JAVA_OPTIONS_REGEX.matcher(line).matches()) {
+            if (line.contains("BEGIN OPENRASP")){
+                isDelete = true;
                 continue;
             }
-
-            sb.append(line).append("\n");
+            if (line.contains("END OPENRASP")){
+                isDelete = false;
+                continue;
+            }
+            if (!isDelete){
+                sb.append(line).append("\n");
+            }
         }
 
         if (NOTFOUND == modifyConfigState) {
