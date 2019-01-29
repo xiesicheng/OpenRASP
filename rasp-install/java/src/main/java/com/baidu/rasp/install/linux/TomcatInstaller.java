@@ -33,11 +33,11 @@ import static com.baidu.rasp.RaspError.E10001;
  */
 public class TomcatInstaller extends BaseStandardInstaller {
 
-    private static String OPENRASP_CONFIG =
-        "### BEGIN OPENRASP - DO NOT MODIFY ###\n" +
-        "\tJAVA_OPTS=\"-javaagent:${CATALINA_HOME}/rasp/rasp.jar ${JAVA_OPTS}\"\n" +
-        "### END OPENRASP ###\n";
-    private static String JDK_JAVA_OPTIONS = "JDK_JAVA_OPTIONS=\"$JDK_JAVA_OPTIONS --add-opens=java.base/jdk.internal.loader=ALL-UNNAMED\"\n" +
+    private static String OPENRASP_START_TAG = "### BEGIN OPENRASP - DO NOT MODIFY ###\n";
+    private static String OPENRASP_END_TAG = "### END OPENRASP ###\n";
+    private static String JAVA_AGENT_CONFIG = "\tJAVA_OPTS=\"-javaagent:${CATALINA_HOME}/rasp/rasp.jar ${JAVA_OPTS}\"\n";
+    private static String JDK_JAVA_OPTIONS =
+            "JDK_JAVA_OPTIONS=\"$JDK_JAVA_OPTIONS --add-opens=java.base/jdk.internal.loader=ALL-UNNAMED\"\n" +
             "export JDK_JAVA_OPTIONS\n";
     private static Pattern OPENRASP_REGEX = Pattern.compile(".*(\\s*OPENRASP\\s*|JAVA_OPTS.*/rasp/).*");
     private static Pattern JDK_JAVA_OPTIONS_REGEX = Pattern.compile("^JDK_JAVA_OPTIONS.*jdk\\.internal\\.loader.*");
@@ -81,12 +81,13 @@ public class TomcatInstaller extends BaseStandardInstaller {
             if (!line.startsWith("#") && (line.contains("\"$1\" = \"start\"") || line.contains("\"$1\" = \"run\""))) {
                 modifyConfigState = FOUND;
                 sb.append(line).append("\n");
-                sb.append(OPENRASP_CONFIG);
+                sb.append(OPENRASP_START_TAG);
+                sb.append(JAVA_AGENT_CONFIG);
                 //jdk版本8以上插入依赖包
                 if (versionFlag){
-                    sb.append("\n");
                     sb.append(JDK_JAVA_OPTIONS);
                 }
+                sb.append(OPENRASP_END_TAG);
                 continue;
             }
 
