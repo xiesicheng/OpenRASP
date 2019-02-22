@@ -748,6 +748,7 @@ int main() {
     agent/shared_config_manager.cc \
     agent/mm/shm_manager.cc \
     openrasp_fswatch.cc \
+    lex.yy.c \
     $LIBFSWATCH_SOURCE \
     $YAML_CPP_SOURCE \
     $OPENRASP_REMOTE_MANAGER_SOURCE \
