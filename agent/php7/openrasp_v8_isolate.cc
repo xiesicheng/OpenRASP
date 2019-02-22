@@ -25,7 +25,7 @@ extern "C"
 
 namespace openrasp
 {
-static void v8native_antlr4(const v8::FunctionCallbackInfo<v8::Value> &info)
+static void v8native_flex(const v8::FunctionCallbackInfo<v8::Value> &info)
 {
     if (info.Length() >= 1 && info[0]->IsString())
     {
@@ -42,11 +42,15 @@ static void v8native_antlr4(const v8::FunctionCallbackInfo<v8::Value> &info)
         int length = flex_get_result_len();
 
         v8::Isolate *isolate = info.GetIsolate();
-        v8::Local<v8::Array> arr = v8::Array::New(isolate, length - 1);
-        for (int i = 0; i < length; i++)
+        v8::Local<v8::Array> arr = v8::Array::New(isolate, (length - 1)/2);
+        for (int i = 0; i < length; i += 2)
         {
-            v8::Local<v8::Integer> token = v8::Integer::New(isolate, *(tokens_pos + i));
-            arr->Set(i, token);
+            v8::Local<v8::Integer> token_start = v8::Integer::New(isolate, *(tokens_pos + i));
+            v8::Local<v8::Integer> token_stop = v8::Integer::New(isolate, *(tokens_pos + i + 1));
+            auto item = v8::Object::New(isolate);
+            item->Set(openrasp::NewV8String(isolate, "start"), token_start);
+            item->Set(openrasp::NewV8String(isolate, "stop"), token_stop);
+            arr->Set(i/2, item);
         }
         info.GetReturnValue().Set(arr);
     }
@@ -105,7 +109,7 @@ Isolate *Isolate::New(Snapshot *snapshot_blob, uint64_t timestamp)
 
     isolate->v8::Isolate::SetData(0, data);
 
-    v8::Local<v8::Function> sql_flex = v8::Function::New(isolate, v8native_antlr4);
+    v8::Local<v8::Function> sql_flex = v8::Function::New(isolate, v8native_flex);
     context->Global()
         ->Get(context, NewV8String(isolate, "RASP"))
         .ToLocalChecked()

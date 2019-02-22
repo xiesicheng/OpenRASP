@@ -766,17 +766,10 @@ function _(message, args)
 
 function sql_flex_token_generate(query) {
     flex_token_arr = RASP.sql_flex(query)
-    var token_list = []
-    for (var i = 0; i < flex_token_arr.length; i += 2) {
-        token_list.push(
-            {
-                start: flex_token_arr[i],
-                stop: flex_token_arr[i+1],
-                test: query.substr(flex_token_arr[i], flex_token_arr[i+1] - flex_token_arr[i] + 1)
-            }
-        )
+    for (var i = 0; i < flex_token_arr.length; i ++ ) {
+            flex_token_arr[i].text = query.substr(flex_token_arr[i].start, flex_token_arr[i].stop)
     }
-    return token_list
+    return flex_token_arr
 }
 
 // 开始
