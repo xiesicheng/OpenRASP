@@ -764,14 +764,6 @@ function _(message, args)
     return message
 }
 
-function sql_flex_token_generate(query) {
-    flex_token_arr = RASP.sql_flex(query)
-    for (var i = 0; i < flex_token_arr.length; i ++ ) {
-            flex_token_arr[i].text = query.substr(flex_token_arr[i].start, flex_token_arr[i].stop)
-    }
-    return flex_token_arr
-}
-
 // 开始
 
 if (RASP.get_jsengine() !== 'v8') {
@@ -820,8 +812,7 @@ if (RASP.get_jsengine() !== 'v8') {
                 // 懒加载，需要的时候初始化 token
                 if (raw_tokens.length == 0) {
                     // raw_tokens = RASP.sql_tokenize(params.query, params.server)
-                    raw_tokens = sql_flex_token_generate(params.query, params.server)
-                    console.log(raw_tokens)
+                    raw_tokens = RASP.sql_flex(params.query, params.server)
                 }
 
                 if (is_token_changed(raw_tokens, userinput_idx, value.length)) {
@@ -894,8 +885,7 @@ if (RASP.get_jsengine() !== 'v8') {
 
                 if (sqliPrefilter2.test(query_lc)) {
                     // raw_tokens = RASP.sql_tokenize(params.query, params.server)
-                    raw_tokens = sql_flex_token_generate(params.query, params.server)
-                    console.log(raw_tokens)
+                    raw_tokens = RASP.sql_flex(params.query, params.server)
                 }
             }
 

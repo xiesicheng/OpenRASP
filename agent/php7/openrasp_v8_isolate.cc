@@ -50,6 +50,15 @@ static void v8native_flex(const v8::FunctionCallbackInfo<v8::Value> &info)
             auto item = v8::Object::New(isolate);
             item->Set(openrasp::NewV8String(isolate, "start"), token_start);
             item->Set(openrasp::NewV8String(isolate, "stop"), token_stop);
+            item->Set(
+                openrasp::NewV8String(isolate, "text"),
+                openrasp::NewV8String(
+                    isolate,
+                    input + *(tokens_pos + i),
+                    size_t(sizeof(char) * (*(tokens_pos + i + 1) - *(tokens_pos + i) + 1))
+                )
+            );
+
             arr->Set(i/2, item);
         }
         info.GetReturnValue().Set(arr);
