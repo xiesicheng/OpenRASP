@@ -18,7 +18,7 @@
 #include "openrasp_v8_bundle.h"
 extern "C"
 {
-    #include "lex.yy.h"
+    #include "openrasp_flex_sql.h"
 }
 
 
@@ -36,17 +36,17 @@ static void v8native_flex(const v8::FunctionCallbackInfo<v8::Value> &info)
         // {
         //     printf("%02x", (unsigned char)*(input + i));
         // }
-        lexing(input, input_len);
+        flex_sql_token_result token_result = flex_sql_lexing(input, input_len);
 
-        int * tokens_pos = flex_get_result();
-        int length = flex_get_result_len();
+        int * sql_tokens = token_result.result;
+        int length = token_result.result_len;
 
         v8::Isolate *isolate = info.GetIsolate();
         v8::Local<v8::Array> arr = v8::Array::New(isolate, (length - 1)/2);
         for (int i = 0; i < length; i += 2)
         {
-            v8::Local<v8::Integer> token_start = v8::Integer::New(isolate, *(tokens_pos + i));
-            v8::Local<v8::Integer> token_stop = v8::Integer::New(isolate, *(tokens_pos + i + 1));
+            v8::Local<v8::Integer> token_start = v8::Integer::New(isolate, *(sql_tokens + i));
+            v8::Local<v8::Integer> token_stop = v8::Integer::New(isolate, *(sql_tokens + i + 1));
             auto item = v8::Object::New(isolate);
             item->Set(openrasp::NewV8String(isolate, "start"), token_start);
             item->Set(openrasp::NewV8String(isolate, "stop"), token_stop);
@@ -54,13 +54,14 @@ static void v8native_flex(const v8::FunctionCallbackInfo<v8::Value> &info)
                 openrasp::NewV8String(isolate, "text"),
                 openrasp::NewV8String(
                     isolate,
-                    input + *(tokens_pos + i),
-                    size_t(sizeof(char) * (*(tokens_pos + i + 1) - *(tokens_pos + i) + 1))
+                    input + *(sql_tokens + i),
+                    size_t(sizeof(char) * (*(sql_tokens + i + 1) - *(sql_tokens + i) + 1))
                 )
             );
 
             arr->Set(i/2, item);
         }
+        free(sql_tokens);
         info.GetReturnValue().Set(arr);
     }
 }
