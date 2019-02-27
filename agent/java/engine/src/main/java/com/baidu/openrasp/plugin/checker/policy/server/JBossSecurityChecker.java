@@ -72,9 +72,9 @@ public class JBossSecurityChecker extends ServerPolicyChecker {
                 jbossWebXmlPath = jbossBaseDir + File.separator + "common" + File.separator + jbossWebXmlPath;
                 webXmlPath = jbossBaseDir + File.separator + "common" + File.separator + webXmlPath;
             } else {
-                String message = JBOSS_SECURITY_CHECK_ERROR + " :" + "JBoss supported 4.x-7.x";
+                String message = JBOSS_SECURITY_CHECK_ERROR + " :" + "JBoss supported 4.x-6.x";
                 int errorCode = ErrorType.PLUGIN_ERROR.getCode();
-                LOGGER.error(CloudUtils.getExceptionObject(message,errorCode));
+                LOGGER.error(CloudUtils.getExceptionObject(message, errorCode));
             }
             checkJBossWebXml(jbossWebXmlPath, infos);
             checkWebXml(webXmlPath, infos);
@@ -140,7 +140,7 @@ public class JBossSecurityChecker extends ServerPolicyChecker {
             e.printStackTrace();
             String message = JBOSS_SECURITY_CHECK_ERROR + ": " + e.getMessage();
             int errorCode = ErrorType.PLUGIN_ERROR.getCode();
-            LOGGER.error(CloudUtils.getExceptionObject(message,errorCode),e);
+            LOGGER.error(CloudUtils.getExceptionObject(message, errorCode), e);
         }
         return null;
     }
@@ -162,7 +162,7 @@ public class JBossSecurityChecker extends ServerPolicyChecker {
 
     public void handleError(String tagName, String path, List<EventInfo> infos) {
         Map<String, Object> params = new HashMap<String, Object>();
-        params.put("config_file",path);
-        infos.add(new SecurityPolicyInfo(SecurityPolicyInfo.Type.JBOSS_JMX_CONSOLE, "JBoss security baseline - Auth constraint for /jmx-console/HTMLAdaptor is not enabled in " + path + "(" + tagName + " is missing or wrong)", true,params));
+        params.put("config_file", path);
+        infos.add(new SecurityPolicyInfo(SecurityPolicyInfo.Type.JBOSS_JMX_CONSOLE, "JBoss security baseline - Auth constraint for /jmx-console/HTMLAdaptor is not enabled in " + path + "(" + tagName + " is missing or wrong)", true, params));
     }
 }

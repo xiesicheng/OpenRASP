@@ -1,7 +1,21 @@
+//Copyright 2017-2019 Baidu Inc.
+//
+//Licensed under the Apache License, Version 2.0 (the "License");
+//you may not use this file except in compliance with the License.
+//You may obtain a copy of the License at
+//
+//http: //www.apache.org/licenses/LICENSE-2.0
+//
+//Unless required by applicable law or agreed to in writing, software
+//distributed under the License is distributed on an "AS IS" BASIS,
+//WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//See the License for the specific language governing permissions and
+//limitations under the License.
+
+
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"rasp-cloud/controllers"
@@ -19,10 +33,7 @@ var (
 // @router /dashboard [post]
 func (o *ReportController) Search() {
 	var query map[string]interface{}
-	err := json.Unmarshal(o.Ctx.Input.RequestBody, &query)
-	if err != nil {
-		o.ServeError(http.StatusBadRequest, "Invalid JSON request", err)
-	}
+	o.UnMarshalJson(&query)
 	startTimeParam := query["start_time"]
 	if startTimeParam == nil {
 		o.ServeError(http.StatusBadRequest, "start_time cannot be empty")
@@ -72,7 +83,7 @@ func (o *ReportController) Search() {
 	if !ok {
 		o.ServeError(http.StatusBadRequest, "app_id must be string")
 	}
-	_, err = models.GetAppById(appId)
+	_, err := models.GetAppById(appId)
 	if err != nil {
 		o.ServeError(http.StatusBadRequest, "failed to get app", err)
 	}

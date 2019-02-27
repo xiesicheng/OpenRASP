@@ -47,7 +47,7 @@ static int openrasp_output_handler(void **nothing, php_output_context *output_co
         }
         if (status == SUCCESS)
         {
-            set_location_header();
+            reset_response();
         }
     }
     return status;
@@ -114,7 +114,9 @@ static int _detect_param_occur_in_html_output(const char *param, OpenRASPActionT
     zval *global = &PG(http_globals)[TRACK_VARS_GET];
     int count = 0;
     zval *val;
-    ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(global), val)
+    zend_string *key;
+    zend_ulong idx;
+    ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(global), idx, key, val)
     {
         if (_gpc_parameter_filter(val))
         {
@@ -122,19 +124,31 @@ static int _detect_param_occur_in_html_output(const char *param, OpenRASPActionT
             {
                 zval attack_params;
                 array_init(&attack_params);
-                add_assoc_long(&attack_params, "count", count);
+                add_assoc_string(&attack_params, "name", "");
+                add_assoc_string(&attack_params, "value", "");
                 zval plugin_message;
-                ZVAL_STRING(&plugin_message, _("Excessively suspected xss parameters"));
+                 ZVAL_STR(&plugin_message, strpprintf(0, _("Reflected XSS attack detected: more than %ld html tags detected in userinput"), OPENRASP_CONFIG(xss.max_detection_num)));
                 openrasp_buildin_php_risk_handle(action, XSS_USER_INPUT, 100, &attack_params, &plugin_message);
                 return SUCCESS;
             }
             if (NULL != strstr(param, Z_STRVAL_P(val)))
             {
+                std::string name;
+                if (key != nullptr)
+                {
+                    name = std::string(ZSTR_VAL(key));
+                }
+                else
+                {
+                    zend_long actual = idx;
+                    name = std::to_string(actual);
+                }
                 zval attack_params;
                 array_init(&attack_params);
-                add_assoc_string(&attack_params, "parameter", Z_STRVAL_P(val));
+                add_assoc_string(&attack_params, "name", const_cast<char *>(name.c_str()));
+                add_assoc_string(&attack_params, "value", Z_STRVAL_P(val));
                 zval plugin_message;
-                ZVAL_STR(&plugin_message, strpprintf(0, _("Reflected XSS attack detected: using get parameter: '%s'"), Z_STRVAL_P(val)));
+                ZVAL_STR(&plugin_message, strpprintf(0, _("Reflected XSS attack detected: parameter name: %s"), name.c_str()));
                 openrasp_buildin_php_risk_handle(action, XSS_USER_INPUT, 100, &attack_params, &plugin_message);
                 return SUCCESS;
             }

@@ -16,16 +16,16 @@
             </a>
           </label>
           <input v-model="data['clientip.header']" type="text" class="form-control">
-        </div>
+        </div>      
         <div class="form-group">
           <label class="form-label">
             自定义拦截状态码
           </label>
-          <b-form-select v-model="data['block.status_code']" :options="[302, 403, 404, 500]" />
+          <b-form-select v-model="data['block.status_code']" :options="[200, 302, 403, 404, 500]" />
         </div>
         <div class="form-group">
           <label class="form-label">
-            自定义拦截跳转页面
+            自定义拦截跳转页面 [仅自定义拦截状态码为302生效]
           </label>
           <input v-model="data['block.redirect_url']" type="text" class="form-control">
         </div>
@@ -56,6 +56,18 @@
           </label>
           <textarea v-model="data['block.content_json']" type="text" class="form-control" />
         </div>
+        <div class="form-group">
+          <label class="custom-switch">
+            <input v-model="data['decompile.enable']" type="checkbox" checked="data['decompile.enable']" class="custom-switch-input">
+            <span class="custom-switch-indicator" />
+            <span class="custom-switch-description">
+              开启反汇编功能
+              <a href="https://rasp.baidu.com/doc/setup/panel.html#decompiler" target="_blank">
+                [帮助文档]
+              </a>            
+            </span>
+          </label>
+        </div>          
       </div>
       <div class="card-footer text-right">
         <div class="d-flex">

@@ -76,7 +76,12 @@ ZEND_END_ARG_INFO()
 
 static const zend_function_entry openrasp_functions[] = {
     PHP_FE(openrasp_ob_handler, arginfo_openrasp_ob_handler)
-        PHP_FE_END};
+#if PHP_MAJOR_VERSION == 5 && PHP_MINOR_VERSION == 3 && PHP_RELEASE_VERSION < 7
+        {NULL, NULL, NULL}
+#else
+        PHP_FE_END
+#endif
+};
 
 static PHP_FUNCTION(openrasp_ob_handler)
 {
@@ -228,10 +233,6 @@ PHP_RINIT_FUNCTION(openrasp)
             if (update_config(&OPENRASP_G(config) TSRMLS_CC, ConfigHolder::FromType::kJson))
             {
                 OPENRASP_G(config).SetLatestUpdateTime(config_last_update);
-            }
-            else
-            {
-                openrasp_error(LEVEL_WARNING, CONFIG_ERROR, _("Fail to load new config."));
             }
         }
         // openrasp_inject must be called before openrasp_log cuz of request_id
@@ -403,25 +404,35 @@ static std::string get_config_abs_path(ConfigHolder::FromType type)
 
 static bool update_config(openrasp::ConfigHolder *config TSRMLS_DC, ConfigHolder::FromType type)
 {
-    if (openrasp_ini.root_dir)
+    if (nullptr != openrasp_ini.root_dir && strcmp(openrasp_ini.root_dir, "") != 0)
     {
         std::string config_file_path = get_config_abs_path(type);
         std::string conf_contents;
         if (get_entire_file_content(config_file_path.c_str(), conf_contents))
         {
-            openrasp::JsonReader json_reader;
-            openrasp::YamlReader yreader;
+            std::shared_ptr<openrasp::BaseReader> config_reader = nullptr;
             switch (type)
             {
             case ConfigHolder::FromType::kJson:
-                json_reader.load(conf_contents);
-                return config->update(&json_reader);
+                config_reader.reset(new openrasp::JsonReader());
                 break;
             case ConfigHolder::FromType::kYaml:
             default:
-                yreader.load(conf_contents);
-                return config->update(&yreader);
+                config_reader.reset(new openrasp::YamlReader());
                 break;
+            }
+            if (config_reader)
+            {
+                config_reader->load(conf_contents);
+                if (config_reader->has_error())
+                {
+                    openrasp_error(LEVEL_WARNING, CONFIG_ERROR, _("Fail to parse config, cuz of %s."),
+                                   config_reader->get_error_msg().c_str());
+                }
+                else
+                {
+                    return config->update(config_reader.get());
+                }
             }
         }
     }

@@ -54,10 +54,15 @@
                 <!-- <a class="dropdown-item" href="javascript:">
                   <i class="dropdown-icon fe fe-settings"></i> 用户设置
                 </a>
-                <div class="dropdown-divider"></div> -->
+                <div class="dropdown-divider"></div> -->                            
+                <RouterLink class="dropdown-item" :to="{ name: 'audit', params: { app_id: current_app.id } }">
+                  <i class="dropdown-icon fe fe-user-check" />
+                  操作审计
+                </RouterLink>
                 <a class="dropdown-item" href="https://rasp.baidu.com/#section-support" target="_blank">
                   <i class="dropdown-icon fa fa-qq" /> 技术支持
                 </a>
+                <div class="dropdown-divider"></div>
                 <a class="dropdown-item" href="javascript:" @click="doLogout()">
                   <i class="dropdown-icon fe fe-log-out" /> 退出登录
                 </a>
@@ -94,6 +99,12 @@
                 </RouterLink>
               </li>
               <li class="nav-item">
+                <RouterLink :to="{ name: 'vulns', params: { app_id: current_app.id } }" class="nav-link">
+                  <i class="fe fe-eye" />
+                  漏洞列表
+                </RouterLink>
+              </li>
+              <li class="nav-item">
                 <RouterLink :to="{ name: 'hosts', params: { app_id: current_app.id } }" class="nav-link">
                   <i class="fe fe-cloud" />
                   主机管理
@@ -111,14 +122,8 @@
                   异常日志
                 </RouterLink>
               </li>
-              <li class="nav-item">
-                <RouterLink :to="{ name: 'audit', params: { app_id: current_app.id } }" class="nav-link">
-                  <i class="fe fe-user-check" />
-                  操作审计
-                </RouterLink>
-              </li>
               <li class="nav-item dropdown">
-                <RouterLink :to="{ name: 'settings', params: { app_id: current_app.id } }" class="nav-link">
+                <RouterLink :to="{ name: 'settings', params: { setting_tab: 'general', app_id: current_app.id } }" class="nav-link">
                   <i class="fe fe-settings" />
                   系统设置
                 </RouterLink>
@@ -141,6 +146,18 @@
       </div>
     </div>
 
+    <div class="alert alert-warning" v-if="no_plugin">
+      <div class="container">
+        <strong>注意!</strong> 当前应用没有配置任何检测插件，请前往 <router-link :to="{name: 'plugins'}">插件页面</router-link> 进行配置
+      </div>
+    </div>
+
+    <div class="alert alert-warning" v-if="all_log">
+      <div class="container">
+        当前以「记录日志」模式运行，可前往 <router-link :to="{name: 'settings', params: {setting_tab: 'algorithm'}}">防护设置</router-link> 关闭
+      </div>
+    </div>    
+
     <AddHostModal ref="addHost" />
   </div>
 </template>
@@ -156,7 +173,9 @@ export default {
   },
   data: function() {
     return {
-      keyword: ''
+      keyword: '',
+      no_plugin: false,
+      all_log: false
     }
   },
   computed: {
@@ -170,6 +189,14 @@ export default {
   },
   watch: {
     current_app(app) {
+      this.no_plugin = ! this.current_app.selected_plugin_id || ! this.current_app.selected_plugin_id.length
+      this.all_log = false
+
+      // 检查是否开启日志模式
+      if (! this.no_plugin) {
+        this.all_log = this.current_app.algorithm_config.meta.all_log
+      }
+
       this.$router.push({
         name: this.$route.name,
         params: {
@@ -191,6 +218,9 @@ export default {
           location.href = '/#/login'
         })
     }
+  },
+  mounted: function() {
+
   }
 }
 </script>

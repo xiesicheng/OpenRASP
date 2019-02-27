@@ -30,10 +30,7 @@ type ErrorController struct {
 // @router /search [post]
 func (o *ErrorController) Search() {
 	var param = &logs.SearchErrorParam{}
-	err := json.Unmarshal(o.Ctx.Input.RequestBody, &param)
-	if err != nil {
-		o.ServeError(http.StatusBadRequest, "json decode error", err)
-	}
+	o.UnMarshalJson(&param)
 	if param.Data == nil {
 		o.ServeError(http.StatusBadRequest, "search data can not be empty")
 	}
@@ -72,7 +69,7 @@ func (o *ErrorController) Search() {
 	delete(searchData, "start_time")
 	delete(searchData, "end_time")
 	delete(searchData, "app_id")
-	total, result, err := logs.SearchLogs(param.Data.StartTime, param.Data.EndTime, searchData, "event_time",
+	total, result, err := logs.SearchLogs(param.Data.StartTime, param.Data.EndTime, false, searchData, "event_time",
 		param.Page, param.Perpage, false, logs.ErrorAlarmInfo.EsAliasIndex+"-"+param.Data.AppId)
 	if err != nil {
 		o.ServeError(http.StatusBadRequest, "failed to search data from es", err)

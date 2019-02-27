@@ -47,10 +47,7 @@ var (
 // @router /get [post]
 func (o *AppController) GetApp() {
 	var data pageParam
-	err := json.Unmarshal(o.Ctx.Input.RequestBody, &data)
-	if err != nil {
-		o.ServeError(http.StatusBadRequest, "Invalid JSON request", err)
-	}
+	o.UnMarshalJson(&data)
 	if data.AppId == "" {
 		if data.Page <= 0 {
 			o.ServeError(http.StatusBadRequest, "page must be greater than 0")
@@ -84,10 +81,7 @@ func (o *AppController) GetApp() {
 // @router /rasp/get [post]
 func (o *AppController) GetRasps() {
 	var param pageParam
-	err := json.Unmarshal(o.Ctx.Input.RequestBody, &param)
-	if err != nil {
-		o.ServeError(http.StatusBadRequest, "Invalid JSON request", err)
-	}
+	o.UnMarshalJson(&param)
 	if param.Page <= 0 {
 		o.ServeError(http.StatusBadRequest, "page must be greater than 0")
 	}
@@ -107,6 +101,9 @@ func (o *AppController) GetRasps() {
 	if err != nil {
 		o.ServeError(http.StatusBadRequest, "failed to get apps", err)
 	}
+	if rasps == nil {
+		rasps = make([]*models.Rasp, 0)
+	}
 	result["total"] = total
 	result["total_page"] = math.Ceil(float64(total) / float64(param.Perpage))
 	result["page"] = param.Page
@@ -120,10 +117,7 @@ func (o *AppController) GetAppSecret() {
 	var param struct {
 		AppId string `json:"app_id"`
 	}
-	err := json.Unmarshal(o.Ctx.Input.RequestBody, &param)
-	if err != nil {
-		o.ServeError(http.StatusBadRequest, "Invalid JSON request", err)
-	}
+	o.UnMarshalJson(&param)
 	if param.AppId == "" {
 		o.ServeError(http.StatusBadRequest, "app_id can not be empty")
 	}
@@ -141,10 +135,7 @@ func (o *AppController) RegenerateAppSecret() {
 	var param struct {
 		AppId string `json:"app_id"`
 	}
-	err := json.Unmarshal(o.Ctx.Input.RequestBody, &param)
-	if err != nil {
-		o.ServeError(http.StatusBadRequest, "Invalid JSON request", err)
-	}
+	o.UnMarshalJson(&param)
 	if param.AppId == "" {
 		o.ServeError(http.StatusBadRequest, "app_id can not be empty")
 	}
@@ -165,10 +156,8 @@ func (o *AppController) UpdateAppGeneralConfig() {
 		AppId  string                 `json:"app_id"`
 		Config map[string]interface{} `json:"config"`
 	}
-	err := json.Unmarshal(o.Ctx.Input.RequestBody, &param)
-	if err != nil {
-		o.ServeError(http.StatusBadRequest, "Invalid JSON request", err)
-	}
+	o.UnMarshalJson(&param)
+
 	if param.AppId == "" {
 		o.ServeError(http.StatusBadRequest, "app_id can not be empty")
 	}
@@ -191,10 +180,8 @@ func (o *AppController) UpdateAppWhiteListConfig() {
 		AppId  string                       `json:"app_id"`
 		Config []models.WhitelistConfigItem `json:"config"`
 	}
-	err := json.Unmarshal(o.Ctx.Input.RequestBody, &param)
-	if err != nil {
-		o.ServeError(http.StatusBadRequest, "Invalid JSON request", err)
-	}
+	o.UnMarshalJson(&param)
+
 	if param.AppId == "" {
 		o.ServeError(http.StatusBadRequest, "app_id can not be empty")
 	}
@@ -215,10 +202,8 @@ func (o *AppController) UpdateAppWhiteListConfig() {
 func (o *AppController) Post() {
 	var app = &models.App{}
 
-	err := json.Unmarshal(o.Ctx.Input.RequestBody, app)
-	if err != nil {
-		o.ServeError(http.StatusBadRequest, "Invalid JSON request", err)
-	}
+	o.UnMarshalJson(app)
+
 	if app.Name == "" {
 		o.ServeError(http.StatusBadRequest, "app name cannot be empty")
 	}
@@ -269,7 +254,7 @@ func (o *AppController) Post() {
 	} else {
 		app.WhitelistConfig = make([]models.WhitelistConfigItem, 0)
 	}
-	app, err = models.AddApp(app)
+	app, err := models.AddApp(app)
 	if err != nil {
 		o.ServeError(http.StatusBadRequest, "create app failed", err)
 	}
@@ -285,14 +270,12 @@ func (o *AppController) ConfigApp() {
 		Name        string `json:"name,omitempty"`
 		Description string `json:"description,omitempty"`
 	}
-	err := json.Unmarshal(o.Ctx.Input.RequestBody, &param)
-	if err != nil {
-		o.ServeError(http.StatusBadRequest, "Invalid JSON request", err)
-	}
+
+	o.UnMarshalJson(&param)
 	if param.AppId == "" {
 		o.ServeError(http.StatusBadRequest, "app_id can not be empty")
 	}
-	_, err = models.GetAppById(param.AppId)
+	_, err := models.GetAppById(param.AppId)
 	if err != nil {
 		o.ServeError(http.StatusBadRequest, "failed to get app", err)
 	}
@@ -402,10 +385,8 @@ func (o *AppController) validHttpAlarm(conf *models.HttpAlarmConf) {
 // @router /delete [post]
 func (o *AppController) Delete() {
 	var app = &models.App{}
-	err := json.Unmarshal(o.Ctx.Input.RequestBody, app)
-	if err != nil {
-		o.ServeError(http.StatusBadRequest, "Invalid JSON request", err)
-	}
+	o.UnMarshalJson(app)
+
 	if app.Id == "" {
 		o.ServeError(http.StatusBadRequest, "the id cannot be empty")
 	}
@@ -506,10 +487,8 @@ func (o *AppController) ConfigAlarm() {
 		DingAlarmConf  *models.DingAlarmConf  `json:"ding_alarm_conf,omitempty"`
 		HttpAlarmConf  *models.HttpAlarmConf  `json:"http_alarm_conf,omitempty"`
 	}
-	err := json.Unmarshal(o.Ctx.Input.RequestBody, &param)
-	if err != nil {
-		o.ServeError(http.StatusBadRequest, "Invalid JSON request", err)
-	}
+	o.UnMarshalJson(&param)
+
 	if param.AppId == "" {
 		o.ServeError(http.StatusBadRequest, "app_id can not be empty")
 	}
@@ -553,10 +532,7 @@ func (o *AppController) ConfigAlarm() {
 // @router /plugin/get [post]
 func (o *AppController) GetPlugins() {
 	var param pageParam
-	err := json.Unmarshal(o.Ctx.Input.RequestBody, &param)
-	if err != nil {
-		o.ServeError(http.StatusBadRequest, "Invalid JSON request", err)
-	}
+	o.UnMarshalJson(&param)
 	if param.Page <= 0 {
 		o.ServeError(http.StatusBadRequest, "page must be greater than 0")
 	}
@@ -587,10 +563,8 @@ func (o *AppController) GetPlugins() {
 // @router /plugin/select/get [post]
 func (o *AppController) GetSelectedPlugin() {
 	var param map[string]string
-	err := json.Unmarshal(o.Ctx.Input.RequestBody, &param)
-	if err != nil {
-		o.ServeError(http.StatusBadRequest, "Invalid JSON request", err)
-	}
+	o.UnMarshalJson(&param)
+
 	appId := param["app_id"]
 	if appId == "" {
 		o.ServeError(http.StatusBadRequest, "app_id cannot be empty")
@@ -609,10 +583,7 @@ func (o *AppController) GetSelectedPlugin() {
 // @router /plugin/select [post]
 func (o *AppController) SetSelectedPlugin() {
 	var param map[string]string
-	err := json.Unmarshal(o.Ctx.Input.RequestBody, &param)
-	if err != nil {
-		o.ServeError(http.StatusBadRequest, "Invalid JSON request", err)
-	}
+	o.UnMarshalJson(&param)
 	appId := param["app_id"]
 	if appId == "" {
 		o.ServeError(http.StatusBadRequest, "app_id cannot be empty")
@@ -621,22 +592,19 @@ func (o *AppController) SetSelectedPlugin() {
 	if pluginId == "" {
 		o.ServeError(http.StatusBadRequest, "plugin_id cannot be empty")
 	}
-	err = models.SetSelectedPlugin(appId, pluginId)
+	plugin, err := models.SetSelectedPlugin(appId, pluginId)
 	if err != nil {
 		o.ServeError(http.StatusBadRequest, "failed to set selected plugin", err)
 	}
 	models.AddOperation(appId, models.OperationTypeSetSelectedPlugin, o.Ctx.Input.IP(),
-		"Deployed plugin for "+appId+": "+pluginId)
+		"Deployed plugin "+plugin.Name+": "+plugin.Version+" ["+plugin.Id+"]")
 	o.ServeWithEmptyData()
 }
 
 // @router /email/test [post]
 func (o *AppController) TestEmail() {
 	var param map[string]string
-	err := json.Unmarshal(o.Ctx.Input.RequestBody, &param)
-	if err != nil {
-		o.ServeError(http.StatusBadRequest, "Invalid JSON request", err)
-	}
+	o.UnMarshalJson(&param)
 	appId := param["app_id"]
 	if appId == "" {
 		o.ServeError(http.StatusBadRequest, "app_id cannot be empty")
@@ -658,10 +626,7 @@ func (o *AppController) TestEmail() {
 // @router /ding/test [post]
 func (o *AppController) TestDing(config map[string]interface{}) {
 	var param map[string]string
-	err := json.Unmarshal(o.Ctx.Input.RequestBody, &param)
-	if err != nil {
-		o.ServeError(http.StatusBadRequest, "Invalid JSON request", err)
-	}
+	o.UnMarshalJson(&param)
 	appId := param["app_id"]
 	if appId == "" {
 		o.ServeError(http.StatusBadRequest, "app_id cannot be empty")
@@ -683,10 +648,7 @@ func (o *AppController) TestDing(config map[string]interface{}) {
 // @router /http/test [post]
 func (o *AppController) TestHttp(config map[string]interface{}) {
 	var param map[string]string
-	err := json.Unmarshal(o.Ctx.Input.RequestBody, &param)
-	if err != nil {
-		o.ServeError(http.StatusBadRequest, "Invalid JSON request", err)
-	}
+	o.UnMarshalJson(&param)
 	appId := param["app_id"]
 	if appId == "" {
 		o.ServeError(http.StatusBadRequest, "app_id cannot be empty")

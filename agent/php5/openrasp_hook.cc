@@ -152,6 +152,12 @@ std::string openrasp_real_path(char *filename, int filename_len, bool use_includ
 
 bool openrasp_zval_in_request(zval *item TSRMLS_DC)
 {
+    return !fetch_name_in_request(item TSRMLS_CC).empty();
+}
+
+std::string fetch_name_in_request(zval *item TSRMLS_DC)
+{
+    std::string name;
     static const track_vars_pair pairs[] = {{TRACK_VARS_POST, "_POST"},
                                             {TRACK_VARS_GET, "_GET"},
                                             {TRACK_VARS_COOKIE, "_COOKIE"}};
@@ -160,13 +166,21 @@ bool openrasp_zval_in_request(zval *item TSRMLS_DC)
     {
         if (!PG(http_globals)[pairs[index].id] && !zend_is_auto_global(pairs[index].name, strlen(pairs[index].name) TSRMLS_CC) && Z_TYPE_P(PG(http_globals)[pairs[index].id]) != IS_ARRAY)
         {
-            return 0;
+            return name;
         }
         HashTable *ht = Z_ARRVAL_P(PG(http_globals)[pairs[index].id]);
         for (zend_hash_internal_pointer_reset(ht);
              zend_hash_has_more_elements(ht) == SUCCESS;
              zend_hash_move_forward(ht))
         {
+            char *key;
+            ulong idx;
+            int type;
+            type = zend_hash_get_current_key(ht, &key, &idx, 0);
+            if (type == HASH_KEY_NON_EXISTENT)
+            {
+                continue;
+            }
             zval **ele_value;
             if (zend_hash_get_current_data(ht, (void **)&ele_value) != SUCCESS)
             {
@@ -174,11 +188,19 @@ bool openrasp_zval_in_request(zval *item TSRMLS_DC)
             }
             if (item == *ele_value)
             {
-                return 1;
+                if (type == HASH_KEY_IS_STRING)
+                {
+                    return std::string(key);
+                }
+                else if (type == HASH_KEY_IS_LONG)
+                {
+                    long actual = idx;
+                    return std::to_string(actual);
+                }
             }
         }
     }
-    return 0;
+    return name;
 }
 
 void openrasp_buildin_php_risk_handle(OpenRASPActionType action, OpenRASPCheckType type, int confidence, zval *params,
@@ -243,7 +265,7 @@ static std::string resolve_request_id(std::string str TSRMLS_DC)
     return str;
 }
 
-void set_location_header(TSRMLS_D)
+void set_location_header(int response_code TSRMLS_DC)
 {
     if (!SG(headers_sent))
     {
@@ -251,8 +273,18 @@ void set_location_header(TSRMLS_D)
         sapi_header_line header;
         header.line = const_cast<char *>(location.c_str());
         header.line_len = location.length();
-        header.response_code = OPENRASP_CONFIG(block.status_code);
+        header.response_code = response_code;
         sapi_header_op(SAPI_HEADER_REPLACE, &header TSRMLS_CC);
+    }
+}
+
+void reset_response(TSRMLS_D)
+{
+    int response_code = OPENRASP_CONFIG(block.status_code);
+    SG(sapi_headers).http_response_code = response_code;
+    if (response_code >= 300 && response_code < 400)
+    {
+        set_location_header(response_code TSRMLS_CC);
     }
 }
 
@@ -277,7 +309,7 @@ void handle_block(TSRMLS_D)
 #error "Unsupported PHP version, please contact OpenRASP team for more information"
 #endif
 
-    set_location_header(TSRMLS_C);
+    reset_response(TSRMLS_C);
 
     {
         OpenRASPContentType::ContentType k_type = OpenRASPContentType::ContentType::cNull;
@@ -343,28 +375,6 @@ void handle_block(TSRMLS_D)
         }
     }
     zend_bailout();
-}
-
-/**
- * 调用 openrasp_check 提供的方法进行检测
- * 若需要拦截，直接返回重定向信息，并终止请求
- */
-void check(OpenRASPCheckType check_type, zval *z_params TSRMLS_DC)
-{
-    bool result = false;
-    openrasp::Isolate *isolate = OPENRASP_V8_G(isolate);
-    if (LIKELY(isolate))
-    {
-        v8::HandleScope handlescope(isolate);
-        auto type = NewV8String(isolate, get_check_type_name(check_type));
-        auto params = v8::Local<v8::Object>::Cast(NewV8ValueFromZval(isolate, z_params));
-        zval_ptr_dtor(&z_params);
-        result = isolate->Check(type, params, OPENRASP_CONFIG(plugin.timeout.millis));
-    }
-    if (result)
-    {
-        handle_block(TSRMLS_C);
-    }
 }
 
 extern int include_or_eval_handler(ZEND_OPCODE_HANDLER_ARGS);

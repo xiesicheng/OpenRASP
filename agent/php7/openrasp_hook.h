@@ -296,13 +296,13 @@ void register_hook_handler(hook_handler_t hook_handler);
 const std::string get_check_type_name(OpenRASPCheckType type);
 
 bool openrasp_zval_in_request(zval *item);
+std::string fetch_name_in_request(zval *item);
 bool openrasp_check_type_ignored(OpenRASPCheckType check_type);
 bool openrasp_check_callable_black(const char *item_name, uint item_name_length);
 
-void check(OpenRASPCheckType type, zval *params);
 void openrasp_buildin_php_risk_handle(OpenRASPActionType action, OpenRASPCheckType type, int confidence, zval *params, zval *message);
 void handle_block();
-void set_location_header();
+void reset_response();
 
 OpenRASPActionType string_to_action(std::string action_string);
 std::string action_to_string(OpenRASPActionType type);

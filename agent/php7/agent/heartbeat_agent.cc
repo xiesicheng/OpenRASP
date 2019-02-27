@@ -15,6 +15,7 @@
  */
 
 #include "utils/JsonReader.h"
+#include "utils/file.h"
 #include "openrasp_agent.h"
 #include "openrasp_hook.h"
 #include "utils/digest.h"
@@ -79,8 +80,9 @@ void HeartBeatAgent::do_heartbeat()
 	std::shared_ptr<BackendResponse> res_info = backend_request.curl_perform();
 	if (!res_info)
 	{
-		openrasp_error(LEVEL_WARNING, HEARTBEAT_ERROR, _("CURL error code: %d, url: %s"),
-					   backend_request.get_curl_code(), url_string.c_str());
+		openrasp_error(LEVEL_WARNING, HEARTBEAT_ERROR, _("CURL error: %s (%d), url: %s"),
+					   backend_request.get_curl_err_msg(), backend_request.get_curl_code(),
+					   url_string.c_str());
 		return;
 	}
 	openrasp_error(LEVEL_DEBUG, HEARTBEAT_ERROR, _("%s"), res_info->to_string().c_str());
@@ -123,7 +125,7 @@ void HeartBeatAgent::do_heartbeat()
 #ifndef _WIN32
 				mode_t oldmask = umask(0);
 #endif
-				bool write_ok = write_str_to_file(cloud_config_file_path.c_str(),
+				bool write_ok = write_string_to_file(cloud_config_file_path.c_str(),
 												  std::ofstream::in | std::ofstream::out | std::ofstream::trunc,
 												  exculde_hook_white_config.c_str(),
 												  exculde_hook_white_config.length());

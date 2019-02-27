@@ -1,6 +1,24 @@
 import axios from 'axios'
 import Cookie from 'js-cookie'
 
+// 起始 type_id: 1001
+export var audit_types = {
+  1002: 'Agent 注册',
+  1003: 'Agent 删除',
+  1004: '重置 AppSecret',
+  1005: '下发通用配置',
+  1006: '下发白名单配置',
+  1007: '下发算法配置',
+  1008: '下发报警配置',
+  1009: '下发检测插件',
+  1010: '上传插件',
+  1011: '删除插件',
+  1012: '创建应用',
+  1013: '删除应用',
+  1014: '更新应用信息',
+  1015: '重置插件配置'
+}
+
 export var browser_headers = [
   {
     name: 'X-Frame-Options',
@@ -78,6 +96,21 @@ export var browser_headers = [
   }
 ]
 
+export var baseline_types = {
+  3001: 'Cookie httpOnly 检查',
+  3002: '进程启动账号检查',
+  3003: '后台弱口令检查',
+  3004: '不安全的默认应用检查',
+  3005: '开放目录检查',
+  3006: '数据库连接账号审计',
+  3007: 'JBoss 后台无认证检查',
+
+  4001: 'allow_url_include 配置审计',
+  4002: 'expose_php 配置审计',
+  4003: 'display_errors 配置审计',
+  4004: 'yaml.decode_php 配置审计'
+}
+
 export var attack_types = {
   sql: 'SQL 注入',
   sql_exception: 'SQL 语句异常',
@@ -95,7 +128,6 @@ export var attack_types = {
   deserialization: 'Transformer 反序列化',
   xss_echo: 'Echo XSS 跨站脚本攻击',
   xss_userinput: 'BODY XSS 跨站脚本攻击',
-  // webshell: 'WebShell 后门',
   webshell_callable: 'WebShell - 变形后门',
   webshell_eval: 'WebShell - 中国菜刀',
   webshell_command: 'WebShell - 命令执行',
@@ -106,7 +138,7 @@ export var attack_types = {
 export var status_types = {
   block: '拦截请求',
   log: '记录日志',
-  ignore: '忽略放行'
+  // ignore: '忽略放行'
 }
 
 export function getDefaultConfig() {
@@ -133,6 +165,14 @@ export function block_status2name(status) {
 }
 
 export function attack_type2name(id) {
+  if (id == 'webshell') {
+    return 'WebShell 网站后门'
+  }
+
+  if (id == 'xss') {
+    return 'XSS 跨站脚本攻击'
+  }
+
   return attack_types[id] || id
 }
 

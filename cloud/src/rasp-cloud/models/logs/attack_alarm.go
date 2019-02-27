@@ -135,7 +135,7 @@ func AggregationAttackWithTime(startTime int64, endTime int64, interval string, 
 					for _, item := range interceptTerm.Buckets {
 						if item.Key == "block" {
 							dataResult[0][index] = item.DocCount
-						} else if item.Key == "info" {
+						} else if item.Key == "log" {
 							dataResult[1][index] = item.DocCount
 						}
 					}

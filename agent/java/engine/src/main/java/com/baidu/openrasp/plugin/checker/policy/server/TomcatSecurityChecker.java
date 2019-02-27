@@ -128,7 +128,7 @@ public class TomcatSecurityChecker extends ServerPolicyChecker {
         File userFile = new File(tomcatBaseDir + File.separator + "conf/tomcat-users.xml");
         if (!(userFile.exists() && userFile.canRead())) {
             String message = getFormattedMessage(TOMCAT_CHECK_ERROR_LOG_CHANNEL,
-                    "can not load file conf/tomcat-users.xml");
+                    "can not load file conf/tomcat-users.xml: no such file or file is not readable");
             int errorCode = ErrorType.PLUGIN_ERROR.getCode();
             LOGGER.warn(CloudUtils.getExceptionObject(message, errorCode));
             return;
@@ -157,20 +157,17 @@ public class TomcatSecurityChecker extends ServerPolicyChecker {
                                         params.put("username", userName);
                                         params.put("password", password);
                                         infos.add(new SecurityPolicyInfo(Type.MANAGER_PASSWORD,
-                                                "Tomcat security baseline - password is empty" +
-                                                        " username/password combination in " +
+                                                "Tomcat security baseline - detected empty password in " +
                                                         userFile.getAbsolutePath() + ", username is " + userName, true, params));
-                                    } else {
-                                        if (weakWords.contains(userName) && weakWords.contains(password)) {
-                                            Map<String, Object> params = new HashMap<String, Object>();
-                                            params.put("config_file", userFile.getAbsolutePath());
-                                            params.put("username", userName);
-                                            params.put("password", password);
-                                            infos.add(new SecurityPolicyInfo(Type.MANAGER_PASSWORD,
-                                                    "Tomcat security baseline - detected weak" +
-                                                            " username/password combination in " +
-                                                            userFile.getAbsolutePath() + ", username is " + userName, true, params));
-                                        }
+                                    }
+                                    if (weakWords.contains(userName) && weakWords.contains(password)) {
+                                        Map<String, Object> params = new HashMap<String, Object>();
+                                        params.put("config_file", userFile.getAbsolutePath());
+                                        params.put("username", userName);
+                                        params.put("password", password);
+                                        infos.add(new SecurityPolicyInfo(Type.MANAGER_PASSWORD,
+                                                "Tomcat security baseline - detected weak username/password combination in " + userFile.getAbsolutePath() +
+                                                        ", username is " + userName, true, params));
                                     }
                                 }
                             }
@@ -185,7 +182,7 @@ public class TomcatSecurityChecker extends ServerPolicyChecker {
         File webFile = new File(tomcatBaseDir + File.separator + "conf/web.xml");
         if (!(webFile.exists() && webFile.canRead())) {
             String message = getFormattedMessage(TOMCAT_CHECK_ERROR_LOG_CHANNEL,
-                    "can not load file conf/web.xml");
+                    "can not load file conf/web.xml: no such file or file is not readable");
             int errorCode = ErrorType.PLUGIN_ERROR.getCode();
             LOGGER.warn(CloudUtils.getExceptionObject(message, errorCode));
             return;
@@ -296,7 +293,7 @@ public class TomcatSecurityChecker extends ServerPolicyChecker {
     private void handleException(Exception e) {
         String message = getFormattedMessage(TOMCAT_CHECK_ERROR_LOG_CHANNEL, e.getMessage());
         int errorCode = ErrorType.HOOK_ERROR.getCode();
-        LOGGER.error(CloudUtils.getExceptionObject(message,errorCode),e);
+        LOGGER.error(CloudUtils.getExceptionObject(message, errorCode), e);
     }
 
     private String getFormattedMessage(String title, String message) {

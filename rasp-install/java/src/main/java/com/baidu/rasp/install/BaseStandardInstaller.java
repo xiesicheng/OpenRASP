@@ -50,6 +50,7 @@ public abstract class BaseStandardInstaller implements Installer {
 
     @Override
     public void install() throws RaspError, IOException {
+        boolean firstInstall = false;
         String jarPath = getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
         File srcDir = new File(new File(jarPath).getParent() + File.separator + "rasp");
         if (!(srcDir.exists() && srcDir.isDirectory())) {
@@ -57,6 +58,10 @@ public abstract class BaseStandardInstaller implements Installer {
         }
         File installDir = new File(getInstallPath(serverRoot));
 
+        File configFile = new File(installDir.getCanonicalPath() + File.separator + "conf" + File.separator + "openrasp.yml");
+        if (!configFile.exists()) {
+            firstInstall = true;
+        }
         if (!srcDir.getCanonicalPath().equals(installDir.getCanonicalPath())) {
             // 拷贝rasp文件夹
             System.out.println("Duplicating \"rasp\" directory\n- " + installDir.getCanonicalPath());
@@ -67,7 +72,7 @@ public abstract class BaseStandardInstaller implements Installer {
         modifyFolerPermission(installDir.getCanonicalPath());
 
         // 生成配置文件
-        if (!generateConfig(installDir.getPath())) {
+        if (!generateConfig(installDir.getPath(), firstInstall)) {
             System.exit(1);
         }
 
@@ -82,38 +87,46 @@ public abstract class BaseStandardInstaller implements Installer {
         String original = read(script);
         String modified = modifyStartScript(original);
         write(script, modified);
-        System.out.println("\nInstallation completed without errors.\nPlease restart application server to take effect.");
+
+        if (App.isAttach) {
+            System.out.println("Attach the rasp to process with pid " + App.pid);
+            new AttachInstaller(App.pid + "", App.baseDir).install();
+        }
+
+        System.out.println("\nInstallation completed without errors.");
+        if (!App.isAttach) {
+            System.out.println("Please restart application server to take effect.");
+        }
     }
 
-
-    private boolean generateConfig(String dir) {
+    private boolean generateConfig(String dir, boolean firstInstall) {
         try {
             String sep = File.separator;
-            File target = new File(dir + sep + "conf" + sep + "rasp.yaml");
+            File target = new File(dir + sep + "conf" + sep + "openrasp.yml");
 
-            System.out.println("Generating \"rasp.yaml\"\n- " + target.getAbsolutePath());
+            System.out.println("Generating \"openrasp.yml\"\n- " + target.getAbsolutePath());
             if (target.exists() && App.keepConfig) {
-                System.out.println("- Already exists and reserved rasp.yaml, continuing ..");
+                System.out.println("- Already exists and reserved openrasp.yml, continuing ..");
                 return true;
             }
-            if (target.exists()) {
-                File reserve = new File(dir + sep + "conf" + sep + "rasp.yaml.bak");
+            if (target.exists() && !firstInstall) {
+                File reserve = new File(dir + sep + "conf" + sep + "openrasp.yml.bak");
                 if (!reserve.exists()) {
-                  reserve.createNewFile();
+                    reserve.createNewFile();
                 }
                 FileOutputStream outputStream = new FileOutputStream(reserve);
                 FileInputStream inputStream = new FileInputStream(target);
                 IOUtils.copy(inputStream, outputStream);
                 outputStream.close();
                 inputStream.close();
-                System.out.println("- Backed up rasp.yaml to rasp.yaml.bak");
+                System.out.println("- Backed up openrasp.yml to openrasp.yml.bak");
             } else {
                 System.out.println("- Create " + target.getAbsolutePath());
                 target.getParentFile().mkdir();
                 target.createNewFile();
             }
             FileWriter writer = new FileWriter(target);
-            InputStream is = this.getClass().getResourceAsStream("/rasp.yaml");
+            InputStream is = this.getClass().getResourceAsStream("/openrasp.yml");
             IOUtils.copy(is, writer, "UTF-8");
             is.close();
             writer.close();
@@ -176,15 +189,15 @@ public abstract class BaseStandardInstaller implements Installer {
 
         try {
             if (url != null && appId != null && appSecret != null) {
-                String path = getInstallPath(serverRoot) + File.separator + "conf" + File.separator + "rasp.yaml";
+                String path = getInstallPath(serverRoot) + File.separator + "conf" + File.separator + "openrasp.yml";
                 File yamlFile = new File(path);
-                if (yamlFile.exists()){
-                    Map<String,Object> map = new HashMap<String, Object>();
+                if (yamlFile.exists()) {
+                    Map<String, Object> map = new HashMap<String, Object>();
                     map.put("cloud.enable", true);
                     map.put("cloud.backend_url", url);
                     map.put("cloud.app_id", appId);
                     map.put("cloud.app_secret", appSecret);
-                    FileWriter writer = new FileWriter(yamlFile,true);
+                    FileWriter writer = new FileWriter(yamlFile, true);
                     writer.write(LINE_SEP);
                     writer.write("#云控配置");
                     writer.write(LINE_SEP);
@@ -192,16 +205,16 @@ public abstract class BaseStandardInstaller implements Installer {
                     options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
                     options.setPrettyFlow(true);
                     Yaml yaml = new Yaml(options);
-                    yaml.dump(map,writer);
+                    yaml.dump(map, writer);
                 }
             }
         } catch (Exception e) {
-            System.out.println("Unable to update rasp.yaml: failed to add cloud control settings: " + e.getMessage());
+            System.out.println("Unable to update openrasp.yml: failed to add cloud control settings: " + e.getMessage());
         }
     }
 
     //判断tomcat的版本是否大于8
-    protected boolean checkTomcatVersion(){
+    protected boolean checkTomcatVersion() {
         String javaVersion = System.getProperty("java.version");
         return javaVersion != null && (javaVersion.startsWith("1.9") || javaVersion.startsWith("10.")
                 || javaVersion.startsWith("11."));

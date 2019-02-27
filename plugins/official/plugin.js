@@ -1,4 +1,4 @@
-const plugin_version = '2019-0118-1830'
+const plugin_version = '2019-0225-1830'
 const plugin_name    = 'official'
 
 /*
@@ -39,17 +39,17 @@ var plugin  = new RASP(plugin_name)
 var algorithmConfig = {
     // 快速设置 - 若 all_log 开启，则所有的 block 都改为 log
     meta: {
-        all_log: false,
+        all_log: true,
     },
 
     // SQL注入算法#1 - 匹配用户输入
-    // 1. 用户输入长度至少 15
-    // 2. 用户输入至少包含一个SQL关键词 - 即 pre_filter，默认关闭
+    // 1. 用户输入长度至少 10
+    // 2. 用户输入至少包含一个SQL关键词 - 即 pre_filter，[默认关闭]
     // 3. 用户输入完整的出现在SQL语句中，且会导致SQL语句逻辑发生变化
     sql_userinput: {
         name:       '算法1 - 用户输入匹配算法',
         action:     'block',
-        min_length: 15,
+        min_length: 10,
         pre_filter: 'select|file|from|;',
         pre_enable: false,
     },
@@ -137,6 +137,7 @@ var algorithmConfig = {
             '.vcap.me',
             '.xip.name',
             '.xip.io',
+            'sslip.io',
             '.nip.io',
             '.burpcollaborator.net',
             '.tu4.org'
@@ -265,7 +266,9 @@ var algorithmConfig = {
             'php',
             'phar',
             'compress.zlib',
-            'compress.bzip2'
+            'compress.bzip2',
+            'zip',
+            'rar'
         ]
     },
 
@@ -354,7 +357,9 @@ var algorithmConfig = {
     // php 专有算法
     xss_echo: {
         name:   '算法1 - PHP: 禁止直接输出 GPC 参数',
-        action: 'log'
+        action: 'log',
+
+        filter_regex: "<![\\-\\[A-Za-z]|<([A-Za-z]{1,12})[\\/ >]"
     },    
 
     webshell_eval: {
@@ -464,6 +469,9 @@ var htmlFileRegex   = /\.(htm|html|js)$/i
 // 其他的 stream 都没啥用
 var ntfsRegex       = /::\$(DATA|INDEX)$/i
 
+// 已知用户输入匹配算法误报: 传入 1,2,3,4 -> IN(1,2,3,4)
+var commaNumRegex   = /^[0-9, ]+$/
+
 // SQL注入算法1 - 预过滤正则
 var sqliPrefilter1  = new RegExp(algorithmConfig.sql_userinput.pre_filter)
 
@@ -485,7 +493,7 @@ String.prototype.replaceAll = function(token, tokenValue) {
 
     do {
         string = string.replace(token, tokenValue);
-    } while((index = string.indexOf(token, index + 1)) > -1);
+    } while((index = string.indexOf(token, index)) > -1);
 
     return string
 }
@@ -501,11 +509,10 @@ String.prototype.replaceAll = function(token, tokenValue) {
 function has_traversal (path) {
 
     // 左右斜杠，一视同仁
-    var path2 = path.replaceAll('\\', '/')
-
+    var path2 = "/" + path.replaceAll('\\', '/') + "/"
     // 覆盖 ../../
     // 以及 /../../
-    var left  = path2.indexOf('../')
+    var left  = path2.indexOf('/../')
     var right = path2.lastIndexOf('/../')
 
     if (left != -1 && right != -1 && left != right)
@@ -535,13 +542,23 @@ function is_hostname_dnslog(hostname) {
     return false
 }
 
-function basename (path) {
-    // 简单处理，同时支持 windows/linux
-    var path2 = path.replaceAll('\\', '/')
-    var idx   = path2.lastIndexOf('/')
+// function basename (path) {
+//     // 简单处理，同时支持 windows/linux
+//     var path2 = path.replaceAll('\\', '/')
+//     var idx   = path2.lastIndexOf('/')
+//     return path.substr(idx + 1)
+// }
 
-    return path.substr(idx + 1)
-}
+// function has_file_extension(path) {
+//     var filename = basename(path)
+//     var index    = filename.indexOf('.')
+
+//     if (index > 0 && index != filename.length - 1) {
+//         return true
+//     }
+
+//     return false
+// }
 
 function validate_stack_php(stacks) {
     var verdict = false
@@ -571,17 +588,6 @@ function validate_stack_php(stacks) {
     return verdict
 }
 
-function has_file_extension(path) {
-    var filename = basename(path)
-    var index    = filename.indexOf('.')
-
-    if (index > 0 && index != filename.length - 1) {
-        return true
-    }
-
-    return false
-}
-
 function is_absolute_path(path, is_windows) {
 
     // Windows - C:\\windows
@@ -604,13 +610,16 @@ function is_absolute_path(path, is_windows) {
 function is_outside_webroot(appBasePath, realpath, path) {
     var verdict = false
 
-    // servlet 3.X 之后可能会获取不到 appBasePath，或者为空
-    // 提前加个判断，防止因为bug导致误报
-    if (! appBasePath || appBasePath.length == 0) {
-        verdict = false
-    }
-    else if (realpath.indexOf(appBasePath) == -1 && has_traversal(path)) {
-        verdict = true
+    // 如果指定path 为 null 则不校验目录穿越
+    if (path == null || has_traversal(path)) {
+        // servlet 3.X 之后可能会获取不到 appBasePath，或者为空
+        // 提前加个判断，防止因为bug导致误报
+        if (! appBasePath || appBasePath.length == 0) {
+            verdict = false
+        }
+        else if (realpath.indexOf(appBasePath) == -1) {
+            verdict = true
+        }
     }
 
     return verdict
@@ -635,7 +644,6 @@ function is_path_endswith_userinput(parameter, target, realpath, is_windows)
         if (typeof value != 'string') {
             return
         }
-
         // 如果应用做了特殊处理， 比如传入 file:///etc/passwd，实际看到的是 /etc/passwd
         if (value.startsWith('file://') && 
             is_absolute_path(target, is_windows) && 
@@ -645,16 +653,24 @@ function is_path_endswith_userinput(parameter, target, realpath, is_windows)
             return true
         }
 
+        // 去除多余/ 和 \ 的路径
+        var simplifiedValue
+
         // Windows 下面
         // 传入 ../../../conf/tomcat-users.xml
         // 看到 c:\tomcat\webapps\root\..\..\conf\tomcat-users.xml
-        if (is_windows){
+        if (is_windows) {
             value = value.replaceAll('/', '\\')
+            target = target.replaceAll('/', '\\')
+            realpath = realpath.replaceAll('/', '\\')
+            simplifiedValue = value.replaceAll('\\\\','\\')
+        } else{
+            simplifiedValue = value.replaceAll('//','/')
         }
-        
+
         // 参数必须有跳出目录，或者是绝对路径
-        if ((value == target || target.endsWith(value))
-            && (has_traversal(value) || value == realpath))
+        if ((target.endsWith(value) || target.endsWith(simplifiedValue))
+            && (has_traversal(value) || value == realpath || simplifiedValue == realpath))
         {
             verdict = true
             return true
@@ -665,7 +681,7 @@ function is_path_endswith_userinput(parameter, target, realpath, is_windows)
 }
 
 // 检查是否包含用户输入 - 适合目录
-function is_path_containing_userinput(parameter, target)
+function is_path_containing_userinput(parameter, target, is_windows)
 {
     var verdict = false
 
@@ -676,6 +692,10 @@ function is_path_containing_userinput(parameter, target)
         // 只处理字符串类型的
         if (typeof value != 'string') {
             return
+        }
+
+        if (is_windows) {
+            value = value.replaceAll('/', '\\')
         }
 
         // java 下面，传入 /usr/ 会变成 /usr，所以少匹配一个字符
@@ -695,10 +715,8 @@ function is_path_containing_userinput(parameter, target)
 function is_from_userinput(parameter, target)
 {
     var verdict = false
-
     Object.keys(parameter).some(function (key) {
         var value = parameter[key]
-
         // 只处理非数组、hash情况
         if (value[0] == target) {
             verdict = true
@@ -778,6 +796,11 @@ if (RASP.get_jsengine() !== 'v8') {
         function _run(values, name) {
             var reason = false
             values.some(function (value) {
+                // 不处理3维及以上的数组
+                if (typeof value != "string") {
+                    return false
+                }
+
                 // 最短长度限制
                 if (value.length < min_length) {
                     return false
@@ -789,7 +812,14 @@ if (RASP.get_jsengine() !== 'v8') {
                     return false
                 }
 
-                if (algorithmConfig.sql_userinput.pre_enable && ! sqliPrefilter1.test(params.query.toLowerCase())) {
+                // 过滤已知误报
+                // 1,2,3,4,5 -> IN(1,2,3,4,5)
+                if (commaNumRegex.test(value)) {
+                    return false
+                }
+
+                // 预过滤正则，如果开启
+                if (algorithmConfig.sql_userinput.pre_enable && ! sqliPrefilter1.test(value)) {
                     return false
                 }
 
@@ -828,20 +858,20 @@ if (RASP.get_jsengine() !== 'v8') {
                 }
             })
 
-            if(Object.keys(json_parameters).length > 0){
+            if(Object.keys(json_parameters).length > 0) {
                 var jsons = [ [json_parameters, "input_json"] ]
-                while(jsons.length > 0 && reason === false){
+                while(jsons.length > 0 && reason === false) {
                     var json_arr = jsons.pop()
                     var crt_json_key = json_arr[1]
                     var json_obj = json_arr[0]
-                    for (item in json_obj){
-                        if(typeof json_obj[item] == "string"){
+                    for (item in json_obj) {
+                        if(typeof json_obj[item] == "string") {
                             reason = _run([json_obj[item]], crt_json_key + "->" + item)
-                            if(reason !== false){
+                            if(reason !== false) {
                                 break;
                             }
                         }
-                        else if(typeof json_obj[item] == "object"){
+                        else if(typeof json_obj[item] == "object") {
                             jsons.push([json_obj[item], crt_json_key + "->" + item])
                         }
                     }
@@ -973,6 +1003,12 @@ if (RASP.get_jsengine() !== 'v8') {
         var reason   = false
         var action   = 'ignore'
 
+        // 1.0 RC1 没有过滤 hostname 为空的情况，为了保证兼容性在这里加个判断
+        if (hostname.length === 0)
+        {
+            return clean
+        }
+
         // 算法1 - 当参数来自用户输入，且为内网IP，判定为SSRF攻击
         if (algorithmConfig.ssrf_userinput.action != 'ignore')
         {
@@ -1040,14 +1076,14 @@ if (RASP.get_jsengine() !== 'v8') {
         {
             var reason = false
 
-            if (Number.isInteger(hostname))
+            if (!isNaN(hostname))
             {
                 reason = _("SSRF - Requesting numeric IP address: %1%", [hostname])
             }
-            else if (hostname.startsWith('0x') && hostname.indexOf('.') === -1)
-            {
-                reason = _("SSRF - Requesting hexadecimal IP address: %1%", [hostname])
-            }
+            // else if (hostname.startsWith('0x') && hostname.indexOf('.') === -1)
+            // {
+            //     reason = _("SSRF - Requesting hexadecimal IP address: %1%", [hostname])
+            // }
 
             if (reason)
             {
@@ -1091,7 +1127,7 @@ plugin.register('directory', function (params, context) {
     var server      = context.server
     var parameter   = context.parameter
 
-    var is_win      = server.os.indexOf('Windows') != -1
+    var is_windows  = server.os.indexOf('Windows') != -1
     var language    = server.language
 
     // 算法1 - 读取敏感目录
@@ -1112,7 +1148,7 @@ plugin.register('directory', function (params, context) {
     // 算法2 - 用户输入匹配。
     if (algorithmConfig.directory_userinput.action != 'ignore')
     {
-        if (is_path_containing_userinput(parameter, params.path))
+        if (is_path_containing_userinput(parameter, params.path, is_windows))
         {
             return {
                 action:     algorithmConfig.directory_userinput.action,
@@ -1150,7 +1186,7 @@ plugin.register('readFile', function (params, context) {
     // weblogic 下面，所有war包读取操作全部忽略
     if (server['server'] === 'weblogic' && params.realpath.endsWith('.war'))
     {
-    	return clean
+        return clean
     }
 
     //
@@ -1172,13 +1208,11 @@ plugin.register('readFile', function (params, context) {
                 algorithm: 'readFile_userinput'
             }
         }
-
         // @FIXME: 用户输入匹配了两次，需要提高效率
         if (is_from_userinput(parameter, params.path))
         {
             // 获取协议，如果有
             var proto = params.path.split('://')[0].toLowerCase()
-
             // 1. 读取 http(s):// 内容
             // ?file=http://www.baidu.com
             if (proto === 'http' || proto === 'https')
@@ -1219,7 +1253,6 @@ plugin.register('readFile', function (params, context) {
     if (algorithmConfig.readFile_unwanted.action != 'ignore')
     {
         var realpath_lc = params.realpath.toLowerCase()
-
         for (var j = 0; j < forcefulBrowsing.absolutePaths.length; j ++) {
             if (forcefulBrowsing.absolutePaths[j] == realpath_lc) {
                 return {
@@ -1421,17 +1454,19 @@ if (algorithmConfig.fileUpload_webdav.action != 'ignore')
 if (algorithmConfig.rename_webshell.action != 'ignore')
 {
     plugin.register('rename', function (params, context) {
-
-        // 源文件是干净的文件，目标文件是脚本文件，判定为重命名方式写后门
-        if (cleanFileRegex.test(params.source) && scriptFileRegex.test(params.dest))
-        {
-            return {
-                action:    algorithmConfig.rename_webshell.action,
-                message:   _("File upload - Renaming a non-script file to server-side script file, source file is %1%", [
-                    params.source
-                ]),
-                confidence: 90,
-                algorithm:  'rename_webshell'
+        // 目标文件在webroot内才认为是写后门
+        if (!is_outside_webroot(context.appBasePath, params.dest, null)) {
+            // 源文件是干净的文件，目标文件是脚本文件，判定为重命名方式写后门
+            if (cleanFileRegex.test(params.source) && scriptFileRegex.test(params.dest))
+            {
+                return {
+                    action:    algorithmConfig.rename_webshell.action,
+                    message:   _("File upload - Renaming a non-script file to server-side script file, source file is %1%", [
+                        params.source
+                    ]),
+                    confidence: 90,
+                    algorithm:  'rename_webshell'
+                }
             }
         }
 
@@ -1457,11 +1492,13 @@ plugin.register('command', function (params, context) {
                 'com.thoughtworks.xstream.XStream.unmarshal':                                   _("Reflected command execution - Using xstream library"),
                 'org.apache.commons.collections4.functors.InvokerTransformer.transform':        _("Reflected command execution - Using Transformer library (v4)"),
                 'org.apache.commons.collections.functors.InvokerTransformer.transform':         _("Reflected command execution - Using Transformer library"),
+                'org.apache.commons.collections.functors.ChainedTransformer.transform':         _("Reflected command execution - Using Transformer library"),
                 'org.jolokia.jsr160.Jsr160RequestDispatcher.dispatchRequest':                   _("Reflected command execution - Using JNDI library"),
                 'com.alibaba.fastjson.parser.deserializer.JavaBeanDeserializer.deserialze':     _("Reflected command execution - Using fastjson library"),
                 'org.springframework.expression.spel.support.ReflectiveMethodExecutor.execute': _("Reflected command execution - Using SpEL expressions"),
                 'freemarker.template.utility.Execute.exec':                                     _("Reflected command execution - Using FreeMarker template"),
                 'org.jboss.el.util.ReflectionUtil.invokeMethod':                                _("Reflected command execution - Using JBoss EL method"),
+                'com.sun.jndi.rmi.registry.RegistryContext.lookup':                             _("Reflected command execution - Using JNDI registry service"),
             }
 
             for (var i = 2; i < params.stack.length; i ++) {
@@ -1621,7 +1658,9 @@ plugin.register('command', function (params, context) {
 
 // 注意: 由于libxml2无法挂钩，所以PHP暂时不支持XXE检测
 plugin.register('xxe', function (params, context) {
-    var items = params.entity.split('://')
+    var server    = context.server
+    var is_win    = server.os.indexOf('Windows') != -1
+    var items     = params.entity.split('://')
 
     if (algorithmConfig.xxe_protocol.action != 'ignore') {
         // 检查 windows + SMB 协议，防止泄露 NTLM 信息
@@ -1659,7 +1698,7 @@ plugin.register('xxe', function (params, context) {
         // file://xwork.dtd
         if (algorithmConfig.xxe_file.action != 'ignore')
         {
-            if (address.length > 0 && protocol === 'file' && address[0] == '/')
+            if (address.length > 0 && protocol === 'file' && is_absolute_path(address, is_win) )
             {
                 var address_lc = address.toLowerCase()
 
@@ -1725,6 +1764,7 @@ if (algorithmConfig.ognl_exec.action != 'ignore')
 if (algorithmConfig.deserialization_transformer.action != 'ignore') {
     plugin.register('deserialization', function (params, context) {
         var deserializationInvalidClazz = [
+            'org.apache.commons.collections.functors.ChainedTransformer.transform',
             'org.apache.commons.collections.functors.InvokerTransformer',
             'org.apache.commons.collections.functors.InstantiateTransformer',
             'org.apache.commons.collections4.functors.InvokerTransformer',
