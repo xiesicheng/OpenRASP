@@ -23,7 +23,6 @@
         <module>boot</module>
         <module>engine</module>
         <module>report</module>
-        <module>integration-test</module>
     </modules>
 
     <dependencyManagement>
