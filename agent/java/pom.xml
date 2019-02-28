@@ -23,6 +23,7 @@
         <module>boot</module>
         <module>engine</module>
         <module>report</module>
+        <module>integration-test</module>
     </modules>
 
     <dependencyManagement>
@@ -221,28 +222,11 @@
                         </goals>
                     </execution>
                     <execution>
-                        <id>default-prepare-agent-integration</id>
+                        <id>default-prepare-integration-agent</id>
                         <goals>
-                            <goal>prepare-agent-integration</goal>
+                            <goal>prepare-agent</goal>
                         </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.17</version>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-failsafe-plugin</artifactId>
-                <version>2.16</version>
-                <executions>
-                    <execution>
-                        <id>default-integration-test</id>
-                        <goals>
-                            <goal>integration-test</goal>
-                        </goals>
+                        <phase>pre-integration-test</phase>
                     </execution>
                 </executions>
             </plugin>

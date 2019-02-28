@@ -12,7 +12,7 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <jacoco.destFile>target/rasp-boot.exec</jacoco.destFile>
+        <!--<jacoco.destFile>target/rasp-boot.exec</jacoco.destFile>-->
     </properties>
 
     <artifactId>rasp-boot</artifactId>
