@@ -23,6 +23,7 @@ cp app.war ${SERVER_HOME}/webapps/
 # tar zxf rasp-java.tar.gz --strip-components=1  $(tar ztf rasp-java.tar.gz --wildcards "*RaspInstall.jar")
 cp jacoco/jacocoagent.jar ${SERVER_HOME}
 
+ls ${SERVER_HOME}
 java -jar RaspInstall.jar -install ${SERVER_HOME}
 
 sh ${SERVER_HOME}/bin/startup.sh
