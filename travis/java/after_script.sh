@@ -11,4 +11,3 @@ java -jar jacococli.jar report $dataFile/jacoco.exec --classfiles ../../temp/cla
 popd
 rm -rf temp
 popd
-curl -s https://codecov.io/bash
