@@ -11,11 +11,26 @@ matrix:
     - env: OPENRASP_LANG=java SERVER=tomcat8
       language: java
       jdk: openjdk8
+    - env: OPENRASP_LANG=java SERVER=tomcat6
+      language: java
+      jdk: openjdk7
+    - env: OPENRASP_LANG=java SERVER=tomcat7
+      language: java
+      jdk: openjdk7
+    - env: OPENRASP_LANG=java SERVER=jboss4
+      language: java
+      jdk: openjdk7
+    - env: OPENRASP_LANG=java SERVER=jboss5
+      language: java
+      jdk: openjdk7
+    - env: OPENRASP_LANG=java SERVER=jboss6
+      language: java
+      jdk: openjdk7
 before_script:
   - bash ./travis/$OPENRASP_LANG/before_script.sh
 script:
   - travis_retry bash ./travis/$OPENRASP_LANG/script.sh
 
-after_success:
-  - bash ./travis/$OPENRASP_LANG/after_script.sh
-  - bash <(curl -s https://codecov.io/bash) 
+# after_success:
+#   - bash ./travis/$OPENRASP_LANG/after_script.sh
+#   - bash <(curl -s https://codecov.io/bash) 

@@ -63,13 +63,14 @@ describe(process.env['SERVER'] || 'server', function () {
     checkPoints.forEach(point => {
         it(point, function () {
             return axios.get(point + '.jsp?test=a&test=b')
-                .should.eventually.have.property('data')
-                .match(/blocked/);
-            //  .then(rst => {
-            //  const content = require('fs').readFileSync(PLUGIN_LOG).toString()
-            //  console.log(content)
-            //  console.log(rst.data)
-            // })
+                .then(rst => {
+                const content = require('fs').readFileSync(PLUGIN_LOG).toString()
+                console.log(content)
+            console.log(rst.data)
+        })
+                // .should.eventually.have.property('data')
+                // .match(/blocked/);
+
 
         });
     });

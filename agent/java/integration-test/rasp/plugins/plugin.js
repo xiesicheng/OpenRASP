@@ -119,9 +119,11 @@ plugin.register('command', function (params, context) {
 });
 
 plugin.register('xxe', function (params, context) {
+    console.log(params);
     checkContext(context, true);
     plugin.log('xxe', params);
     if (params.entity.endsWith('/etc/passwd')) {
+        plugin.log('run----xxe');
         return {
             action: 'block'
         }
@@ -159,9 +161,11 @@ plugin.register('include', function (params, context) {
 });
 
 plugin.register('ssrf', function (params, context) {
+    plugin.log(params);
     checkContext(context);
     plugin.log('ssrf', params);
     if (params.hostname === '0x7f.0x0.0x0.0x1' && params.url === 'http://0x7f.0x0.0x0.0x1:8080/app') {
+        plugin.log('run----ssrf');
         return {
             action: 'block'
         }
