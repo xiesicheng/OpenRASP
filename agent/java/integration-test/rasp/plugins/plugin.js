@@ -119,9 +119,10 @@ plugin.register('command', function (params, context) {
 });
 
 plugin.register('xxe', function (params, context) {
-    console.log(params);
+    plugin.log('xxe-----start');
+    plugin.log(params);
     checkContext(context);
-    plugin.log('xxe', params);
+    plugin.log('xxe***', params);
     if (params.entity.endsWith('/etc/passwd')) {
         plugin.log('run----xxe');
         return {
@@ -161,7 +162,7 @@ plugin.register('include', function (params, context) {
 });
 
 plugin.register('ssrf', function (params, context) {
-    plugin.log('ssrf---begin')
+    plugin.log('ssrf---begin');
     plugin.log(params);
     checkContext(context);
     plugin.log('ssrf', params);
