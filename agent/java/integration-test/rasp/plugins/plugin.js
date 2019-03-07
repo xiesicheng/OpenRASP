@@ -161,11 +161,12 @@ plugin.register('include', function (params, context) {
 });
 
 plugin.register('ssrf', function (params, context) {
+    plugin.log('ssrf---begin')
     plugin.log(params);
     checkContext(context);
     plugin.log('ssrf', params);
     if (params.hostname === '0x7f.0x0.0x0.0x1' && params.url === 'http://0x7f.0x0.0x0.0x1:8080/app') {
-        plugin.log('run----ssrf');
+        plugin.log('end----ssrf');
         return {
             action: 'block'
         }
