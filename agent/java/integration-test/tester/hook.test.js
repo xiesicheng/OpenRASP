@@ -70,8 +70,6 @@ describe(process.env['SERVER'] || 'server', function () {
             //     console.log(content)
             // console.log(rst.data)
         });
-
-        });
     });
     var env = process.env['SERVER'] || 'server';
     if (env == 'dubbo') {
