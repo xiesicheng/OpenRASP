@@ -120,7 +120,7 @@ plugin.register('command', function (params, context) {
 
 plugin.register('xxe', function (params, context) {
     console.log(params);
-    checkContext(context, true);
+    checkContext(context);
     plugin.log('xxe', params);
     if (params.entity.endsWith('/etc/passwd')) {
         plugin.log('run----xxe');
