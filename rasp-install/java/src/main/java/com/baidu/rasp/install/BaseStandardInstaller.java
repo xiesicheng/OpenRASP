@@ -17,6 +17,7 @@
 package com.baidu.rasp.install;
 
 import com.baidu.rasp.App;
+import com.baidu.rasp.Attacher;
 import com.baidu.rasp.RaspError;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
@@ -89,8 +90,8 @@ public abstract class BaseStandardInstaller implements Installer {
         write(script, modified);
 
         if (App.isAttach) {
-            System.out.println("Attach the rasp to process with pid " + App.pid);
-            new AttachInstaller(App.pid + "", App.baseDir).install();
+            System.out.println("\nAttach the rasp to process: " + App.pid);
+            new Attacher(App.pid + "", App.baseDir).doAttach(Attacher.MODE_INSTALL);
         }
 
         System.out.println("\nInstallation completed without errors.");

@@ -16,7 +16,6 @@
 
 package com.baidu.rasp;
 
-import com.baidu.rasp.install.AttachInstaller;
 import com.baidu.rasp.install.Installer;
 import com.baidu.rasp.install.InstallerFactory;
 import com.baidu.rasp.install.linux.LinuxInstallerFactory;
@@ -78,8 +77,7 @@ public class App {
         options.addOption("keepconf", false, "If the parameter exists, reserved openrasp.yml");
         options.addOption("help", false, "print options information");
         options.addOption("h", false, "print options information");
-        options.addOption("attach", false, "If the parameter exists, use 'attach' mode to install the rasp");
-        options.addOption("pid", true, "If the 'attach' parameter exists, specify the pid that the rasp attach to");
+        options.addOption("pid", true, "specify the pid that the rasp attach to");
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = parser.parse(options, args);
         if (cmd.hasOption("help") || cmd.hasOption("h")) {
@@ -87,25 +85,25 @@ public class App {
         } else {
             if (cmd.hasOption("install") && cmd.hasOption("uninstall")) {
                 throw new RaspError(E10005 + "Can't use -install and -uninstall simultaneously");
-            } else if (cmd.hasOption("install")) {
-                baseDir = cmd.getOptionValue("install");
-                install = "install";
-                if (cmd.hasOption("attach")) {
+            } else {
+                if (cmd.hasOption("install")) {
+                    baseDir = cmd.getOptionValue("install");
+                    install = "install";
+                } else if (cmd.hasOption("uninstall")) {
+                    baseDir = cmd.getOptionValue("uninstall");
+                    install = "uninstall";
+                } else {
+                    throw new RaspError(E10005 + "One of -install and -uninstall must be specified");
+                }
+
+                if (cmd.hasOption("pid")) {
                     isAttach = true;
-                    if (!cmd.hasOption("pid")) {
-                        throw new RaspError(E10005 + "The -pid must be specified in attach mode");
-                    }
                     try {
                         pid = Integer.parseInt(cmd.getOptionValue("pid"));
                     } catch (NumberFormatException e) {
-                        throw new RaspError(E10005 + "The -pid parameter must be integer");
+                        throw new RaspError(E10005 + "The -pid parameter must have a integer value");
                     }
                 }
-            } else if (cmd.hasOption("uninstall")) {
-                baseDir = cmd.getOptionValue("uninstall");
-                install = "uninstall";
-            } else {
-                throw new RaspError(E10005 + "One of -install and -uninstall must be specified");
             }
 
             keepConfig = cmd.hasOption("keepconf");

@@ -30,7 +30,7 @@ type RaspController struct {
 func (o *RaspController) Post() {
 	var rasp = &models.Rasp{}
 	rasp.AppId = o.Ctx.Input.Header("X-OpenRASP-AppID")
-	o.UnMarshalJson(rasp)
+	o.UnmarshalJson(rasp)
 	if rasp.Id == "" {
 		o.ServeError(http.StatusBadRequest, "rasp id cannot be empty")
 	}
@@ -75,6 +75,21 @@ func (o *RaspController) Post() {
 	}
 	if rasp.HeartbeatInterval <= 0 {
 		o.ServeError(http.StatusBadRequest, "heartbeat_interval must be greater than 0")
+	}
+
+	if rasp.Environ == nil {
+		rasp.Environ = map[string]string{}
+	}
+
+	for k, v := range rasp.Environ {
+		if len(k) > 4096 {
+			o.ServeError(http.StatusBadRequest,
+				"the length of environ key cannot be greater than 4096")
+		}
+		if len(v) > 4096 {
+			o.ServeError(http.StatusBadRequest,
+				"the length of environ value cannot be greater than 4096")
+		}
 	}
 
 	rasp.LastHeartbeatTime = time.Now().Unix()

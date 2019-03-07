@@ -22,8 +22,8 @@ import com.baidu.openrasp.plugin.checker.local.SSRFChecker;
 import com.baidu.openrasp.plugin.checker.local.SqlResultChecker;
 import com.baidu.openrasp.plugin.checker.local.SqlStatementChecker;
 import com.baidu.openrasp.plugin.checker.local.XssChecker;
-import com.baidu.openrasp.plugin.checker.policy.server.*;
 import com.baidu.openrasp.plugin.checker.policy.SqlConnectionChecker;
+import com.baidu.openrasp.plugin.checker.policy.server.*;
 import com.baidu.openrasp.request.AbstractRequest;
 import com.google.gson.Gson;
 
@@ -56,6 +56,7 @@ public class CheckParameter {
         WEBDAV("webdav", new JsChecker(), 1 << 12),
         INCLUDE("include", new JsChecker(), 1 << 13),
         SSRF("ssrf", new SSRFChecker(), 1 << 14),
+        SQLEXCEPTION("sql_exception", new SqlStatementChecker(), 1 << 15),
 
         // java本地检测
         SQL_SLOW_QUERY("sqlSlowQuery", new SqlResultChecker(false), 0),

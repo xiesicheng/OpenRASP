@@ -8,10 +8,10 @@ import (
 	_ "rasp-cloud/controllers"
 	"testing"
 	"github.com/astaxie/beego"
-	. "github.com/smartystreets/goconvey/convey"
 	"rasp-cloud/routers"
 	"rasp-cloud/controllers"
 	"rasp-cloud/conf"
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 func init() {
@@ -20,8 +20,6 @@ func init() {
 }
 
 func TestAppConfig(t *testing.T) {
-	startType := conf.StartTypeDefault
-	conf.InitConfig(&conf.Flag{StartType: &startType})
 	Convey("Subject: Test Config Init\n", t, func() {
 		So(*conf.AppConfig.Flag.StartType, ShouldEqual, conf.StartTypeDefault)
 	})
