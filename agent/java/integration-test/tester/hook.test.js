@@ -69,7 +69,7 @@ describe(process.env['SERVER'] || 'server', function () {
             //     const content = require('fs').readFileSync(PLUGIN_LOG).toString()
             //     console.log(content)
             // console.log(rst.data)
-        })
+        });
 
         });
     });
