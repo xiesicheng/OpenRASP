@@ -35,8 +35,6 @@ public class TomcatInstaller extends BaseStandardInstaller {
     private static String JDK_JAVA_OPTIONS =
             "JDK_JAVA_OPTIONS=\"$JDK_JAVA_OPTIONS --add-opens=java.base/jdk.internal.loader=ALL-UNNAMED\"\n" +
             "export JDK_JAVA_OPTIONS\n";
-    private static Pattern OPENRASP_REGEX = Pattern.compile(".*(\\s*OPENRASP\\s*|JAVA_OPTS.*/rasp/).*");
-    private static Pattern JDK_JAVA_OPTIONS_REGEX = Pattern.compile("^JDK_JAVA_OPTIONS.*jdk\\.internal\\.loader.*");
 
     TomcatInstaller(String serverName, String serverRoot) {
         super(serverName, serverRoot);
