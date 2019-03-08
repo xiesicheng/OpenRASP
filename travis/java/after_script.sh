@@ -18,7 +18,7 @@ if [[ -f "rasp-engine.jar" ]] && [[ -f "rasp.jar" ]]; then
     popd
     rm -rf com/
     jar -xvf rasp-engine.jar $fileList
-    jar -xvf ../../boot/rasp.jar com/baidu
+    jar -xvf rasp.jar com/baidu
     cp -r com/ ../classes
     popd
     cp -r engine/src/main/java/* integration-test/jacoco/sources
