@@ -31,6 +31,6 @@ before_script:
 script:
   - travis_retry bash ./travis/$OPENRASP_LANG/script.sh
 
-# after_success:
-#   - bash ./travis/$OPENRASP_LANG/after_script.sh
-#   - bash <(curl -s https://codecov.io/bash) 
+after_success:
+  - bash ./travis/$OPENRASP_LANG/after_script.sh
+  - bash <(curl -s https://codecov.io/bash) 
