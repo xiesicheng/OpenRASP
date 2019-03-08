@@ -21,7 +21,7 @@ cp app.war ${SERVER_HOME}/server/default/deploy/
 # wget -N $(curl -s https://api.github.com/repos/baidu/openrasp/releases/latest | grep "browser_download_url.*rasp-java\.tar\.gz" | cut -d '"' -f 4)
 
 # tar zxf rasp-java.tar.gz --strip-components=1  $(tar ztf rasp-java.tar.gz --wildcards "*RaspInstall.jar")
-
+cp jacoco/jacocoagent.jar ${SERVER_HOME}
 java -jar RaspInstall.jar -install ${SERVER_HOME}
 
 nohup sh ${SERVER_HOME}/bin/run.sh &
