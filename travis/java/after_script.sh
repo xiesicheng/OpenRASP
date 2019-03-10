@@ -25,11 +25,9 @@ if [[ -f "rasp-engine.jar" ]] && [[ -f "rasp.jar" ]]; then
     cp -r engine/src/main/java/com/baidu/openrasp/* integration-test/jacoco/sources/com/baidu/openrasp/
     cp -r boot/src/main/java/com/baidu/openrasp/* integration-test/jacoco/sources/com/baidu/openrasp/
 fi
-ls -a integration-test/jacoco/sources/com/baidu/openrasp/
-ls -a integration-test/jacoco/classes/com/baidu/openrasp/
 pushd integration-test/jacoco
 dataFile=/home/travis/build/baidu/openrasp/agent/java
-java -jar jacococli.jar report $dataFile/jacoco.exec --classfiles classes/ --sourcefiles sources/ --xml jacoco.xml
+java -jar jacococli.jar report $dataFile/jacoco.exec --classfiles classes/ --sourcefiles sources/ --xml jacoco.html
 popd
 rm -rf integration-test/temp/
 rm -rf integration-test/sources/
