@@ -21,10 +21,10 @@ if [[ -f "rasp-engine.jar" ]] && [[ -f "rasp.jar" ]]; then
     jar -xvf rasp.jar com/baidu
     cp -r com/ ../classes
     popd
-    pwd
+    ls -a
     rm -rf integration-test/jacoco/sources/com/baidu/openrasp/*
     cp -r engine/src/main/java/com/baidu/openrasp/* integration-test/jacoco/sources/com/baidu/openrasp/
-    cp -r boot/src/main/java/com/baidu/openrasp/* ntegration-test/jacoco/sources/com/baidu/openrasp/
+    cp -r boot/src/main/java/com/baidu/openrasp/* integration-test/jacoco/sources/com/baidu/openrasp/
 fi
 pushd integration-test/jacoco
 dataFile=/home/travis/build/baidu/openrasp/agent/java
