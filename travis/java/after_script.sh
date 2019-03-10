@@ -12,7 +12,6 @@ if [[ -f "rasp-engine.jar" ]] && [[ -f "rasp.jar" ]]; then
     pushd com/baidu/openrasp/
     fileList=
     for file in $(ls); do
-       echo $file
        fileList="com/baidu/openrasp/$file $fileList"
     done
     popd
@@ -21,7 +20,9 @@ if [[ -f "rasp-engine.jar" ]] && [[ -f "rasp.jar" ]]; then
     jar -xvf rasp.jar com/baidu
     cp -r com/ ../classes
     popd
-    ls -a
+    for file in $(ls *); do
+       echo $file
+    done
     rm -rf integration-test/jacoco/sources/com/baidu/openrasp/*
     cp -r engine/src/main/java/com/baidu/openrasp/* integration-test/jacoco/sources/com/baidu/openrasp/
     cp -r boot/src/main/java/com/baidu/openrasp/* integration-test/jacoco/sources/com/baidu/openrasp/
