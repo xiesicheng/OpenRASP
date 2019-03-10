@@ -4,7 +4,7 @@ set -ev
 pushd agent/java/
 mkdir integration-test/jacoco/temp
 mkdir -p integration-test/jacoco/sources/com/baidu/openrasp/
-mkdir -p integration-test/jacoco/classes/
+mkdir -p integration-test/jacoco/classes/com/baidu/openrasp/
 cp engine/target/original-rasp-engine.jar integration-test/jacoco/temp
 cp engine/target/rasp-engine.jar integration-test/jacoco/temp
 cp boot/target/rasp.jar integration-test/jacoco/temp
@@ -20,16 +20,13 @@ if [[ -f "rasp-engine.jar" ]] && [[ -f "rasp.jar" ]]; then
     rm -rf com/
     jar -xvf rasp-engine.jar $fileList
     jar -xvf rasp.jar com/baidu
-    cp -r com/ ../classes
+    cp -r com/baidu/openrasp/* ../classes/com/baidu/openrasp/
     popd
     cp -r engine/src/main/java/com/baidu/openrasp/* integration-test/jacoco/sources/com/baidu/openrasp/
     cp -r boot/src/main/java/com/baidu/openrasp/* integration-test/jacoco/sources/com/baidu/openrasp/
 fi
-pushd integration-test/jacoco/classes/com
-for file in $(ls *); do
-    echo $file
-done
-popd
+ls -a integration-test/jacoco/sources/com/baidu/openrasp/
+ls -a integration-test/jacoco/classes/com/baidu/openrasp/
 pushd integration-test/jacoco
 dataFile=/home/travis/build/baidu/openrasp/agent/java
 java -jar jacococli.jar report $dataFile/jacoco.exec --classfiles classes/ --sourcefiles sources/ --xml jacoco.xml
