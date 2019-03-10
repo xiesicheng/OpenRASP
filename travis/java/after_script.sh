@@ -25,10 +25,10 @@ if [[ -f "rasp-engine.jar" ]] && [[ -f "rasp.jar" ]]; then
     cp -r engine/src/main/java/com/baidu/openrasp/* integration-test/jacoco/sources/com/baidu/openrasp/
     cp -r boot/src/main/java/com/baidu/openrasp/* integration-test/jacoco/sources/com/baidu/openrasp/
 fi
-for file in $(ls integration-test/jacoco/sources/); do
+for file in $(ls integration-test/jacoco/sources/*); do
        echo $file
 done
-for file in $(ls integration-test/jacoco/classes/); do
+for file in $(ls integration-test/jacoco/classes/*); do
        echo $file
 done
 pushd integration-test/jacoco
