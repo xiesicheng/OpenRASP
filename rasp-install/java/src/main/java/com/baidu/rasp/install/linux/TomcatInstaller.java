@@ -31,7 +31,7 @@ public class TomcatInstaller extends BaseStandardInstaller {
     private static String OPENRASP_START_TAG = "### BEGIN OPENRASP - DO NOT MODIFY ###\n";
     private static String OPENRASP_END_TAG = "### END OPENRASP ###\n";
     private static String JAVA_AGENT_CONFIG = "\tJAVA_OPTS=\"-javaagent:${CATALINA_HOME}/rasp/rasp.jar ${JAVA_OPTS}\"\n";
-    private static String JACOCO_CONFIG = "\tJAVA_OPTS=\"-javaagent:${CATALINA_HOME}/jacocoagent.jar=output=tcpserver,port=8899,address=172.17.0.1 -Xverify:none ${JAVA_OPTS}\"\n";
+    private static String JACOCO_CONFIG = "\tJAVA_OPTS=\"-javaagent:${CATALINA_HOME}/jacocoagent.jar=destfile=/home/travis/build/baidu/openrasp/agent/java/jacoco.exec -Xverify:none ${JAVA_OPTS}\"\n";
     private static String JDK_JAVA_OPTIONS =
             "JDK_JAVA_OPTIONS=\"$JDK_JAVA_OPTIONS --add-opens=java.base/jdk.internal.loader=ALL-UNNAMED\"\n" +
             "export JDK_JAVA_OPTIONS\n";
