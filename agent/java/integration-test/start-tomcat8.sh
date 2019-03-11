@@ -27,4 +27,4 @@ java -jar RaspInstall.jar -install ${SERVER_HOME}
 
 sh ${SERVER_HOME}/bin/startup.sh
 
-ps -ef | grep tomcat
+ifconfig
