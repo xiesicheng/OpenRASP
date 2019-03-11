@@ -27,7 +27,7 @@ if [[ -f "rasp-engine.jar" ]] && [[ -f "rasp.jar" ]]; then
 fi
 pushd integration-test/jacoco
 dataFile=/home/travis/build/baidu/openrasp/agent/java
-java -jar jacococli.jar report $dataFile/jacoco.exec --classfiles classes/ --sourcefiles sources/ --html $dataFile
+java -jar jacococli.jar report $dataFile/jacoco.exec --classfiles classes/ --sourcefiles sources/ --xml jacoco.xml
 popd
 rm -rf integration-test/temp/
 rm -rf integration-test/sources/
