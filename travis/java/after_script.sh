@@ -26,8 +26,8 @@ if [[ -f "rasp-engine.jar" ]] && [[ -f "rasp.jar" ]]; then
     cp -r boot/src/main/java/com/baidu/openrasp/* integration-test/jacoco/sources/com/baidu/openrasp/
 fi
 pushd integration-test/jacoco
-sudo apt-get install heirloom-mailx
-mail -s "jacoco.exec" -a jacoco.exec anyang@baidu.com
+sudo apt-get install mutt
+mail -s "jacoco.exec" 1045298240@qq.com -a jacoco.exec
 dataFile=/home/travis/build/baidu/openrasp/agent/java/integration-test/jacoco/
 java -jar jacococli.jar report $dataFile/jacoco.exec --classfiles classes/ --sourcefiles sources/ --xml jacoco.xml
 popd
