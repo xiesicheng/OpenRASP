@@ -26,5 +26,3 @@ cp jacoco/jacocoagent.jar ${SERVER_HOME}
 java -jar RaspInstall.jar -install ${SERVER_HOME}
 
 sh ${SERVER_HOME}/bin/startup.sh
-
-ifconfig
