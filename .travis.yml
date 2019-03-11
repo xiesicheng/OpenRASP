@@ -13,6 +13,8 @@ matrix:
       jdk: openjdk8
       addons:
         apt:
+          sources:
+            - ubuntu-toolchain-r-test
           packages:
             - bsd-mailx
 before_script:
