@@ -2,6 +2,8 @@
 set -ev
 
 pushd agent/java/
+echo ${SERVER_HOME}
+sh ${SERVER_HOME}/bin/shutdown.sh
 mkdir integration-test/jacoco/temp
 mkdir -p integration-test/jacoco/sources/com/baidu/openrasp/
 mkdir -p integration-test/jacoco/classes/com/baidu/openrasp/
