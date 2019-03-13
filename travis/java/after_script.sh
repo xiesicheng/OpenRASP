@@ -1,9 +1,8 @@
 #!/bin/bash
 set -ev
-
-pushd agent/java/
-echo ${SERVER_HOME}
+source /tmp/openrasp_java_server_home.sh
 sh ${SERVER_HOME}/bin/shutdown.sh
+pushd agent/java/
 mkdir integration-test/jacoco/temp
 mkdir -p integration-test/jacoco/sources/com/baidu/openrasp/
 mkdir -p integration-test/jacoco/classes/com/baidu/openrasp/
@@ -28,7 +27,6 @@ if [[ -f "rasp-engine.jar" ]] && [[ -f "rasp.jar" ]]; then
     cp -r boot/src/main/java/com/baidu/openrasp/* integration-test/jacoco/sources/com/baidu/openrasp/
 fi
 pushd integration-test/jacoco
-mail -s "jacoco.exec" -a jacoco.exec anyang666888@gmail.com
 dataFile=/home/travis/build/baidu/openrasp/agent/java/integration-test/jacoco/
 java -jar jacococli.jar report $dataFile/jacoco.exec --classfiles classes/ --sourcefiles sources/ --xml jacoco.xml
 popd
