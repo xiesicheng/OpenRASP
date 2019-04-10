@@ -60,17 +60,17 @@ describe(process.env['SERVER'] || 'server', function () {
     let checkPoints = ['command', 'deserialization', 'directory',
         'ognl', 'readFile', 'request', 'writeFile', 'xxe', 'jstlImport', 'sqlite', 'postgresql', 'mysql','http-commonclient','http-httpclient','http-urlconnection',
         'sqlite-prepared', 'postgresql-prepared', 'mysql-prepared'];
-    checkPoints.forEach(point => {
-        it(point, function () {
-            return axios.get(point + '.jsp?test=a&test=b')
-            .should.eventually.have.property('data')
-            .match(/blocked/);
+    // checkPoints.forEach(point => {
+        // it(point, function () {
+        //     return axios.get(point + '.jsp?test=a&test=b')
+        //     .should.eventually.have.property('data')
+        //     .match(/blocked/);
             //         .then(rst => {
             //         const content = require('fs').readFileSync(PLUGIN_LOG).toString()
             //         console.log(content)
             //             })
-         });
-    });
+         // });
+    // });
     var env = process.env['SERVER'] || 'server';
     if (env == 'dubbo') {
         it('dubbo', function () {
