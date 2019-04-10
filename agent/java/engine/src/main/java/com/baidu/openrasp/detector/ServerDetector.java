@@ -25,8 +25,13 @@ import com.baidu.openrasp.config.Config;
 import com.baidu.openrasp.plugin.checker.CheckParameter;
 import com.baidu.openrasp.tool.OSUtil;
 import com.baidu.openrasp.tool.model.ApplicationModel;
+import org.apache.commons.io.IOUtils;
 import org.apache.log4j.Logger;
 
+import java.io.File;
+import java.io.FileFilter;
+import java.io.FileReader;
+import java.net.URLDecoder;
 import java.security.ProtectionDomain;
 
 /**
@@ -47,6 +52,7 @@ public abstract class ServerDetector {
     public boolean handleServer(String className, ClassLoader classLoader, ProtectionDomain domain) {
         boolean isDetected = handleServerInfo(classLoader, domain);
         if (isDetected) {
+            HookHandler.enableHook.set(true);
             sendRegister();
         }
         return isDetected;
@@ -100,6 +106,8 @@ public abstract class ServerDetector {
             HookHandler.doRealCheckWithoutRequest(CheckParameter.Type.POLICY_SERVER_WEBLOGIC, CheckParameter.EMPTY_MAP);
         } else if ("undertow".equals(serverName)) {
             HookHandler.doRealCheckWithoutRequest(CheckParameter.Type.POLICY_SERVER_WILDFLY, CheckParameter.EMPTY_MAP);
+        } else if ("jboss eap".equals(serverName)) {
+            HookHandler.doRealCheckWithoutRequest(CheckParameter.Type.POLICY_SERVER_JBOSSEAP, CheckParameter.EMPTY_MAP);
         }
     }
 
@@ -108,4 +116,36 @@ public abstract class ServerDetector {
         HookHandler.LOGGER.warn(CloudUtils.getExceptionObject(message, errorCode), t);
     }
 
+    public boolean isWildfly(ProtectionDomain domain) {
+        try {
+            String path = domain.getCodeSource().getLocation().getFile();
+            path = URLDecoder.decode(path, "UTF-8");
+            File runJar = new File(path);
+            File homeFile = runJar.getParentFile();
+            File dir = new File(homeFile.getCanonicalPath() + File.separator + "bin" + File.separator + "init.d");
+            if (dir.exists() && dir.isDirectory()) {
+                File[] files = dir.listFiles(new FileFilter() {
+                    @Override
+                    public boolean accept(File file) {
+                        return file.getName().contains("wildfly");
+                    }
+                });
+                return files != null && files.length > 0;
+            }else {
+                return detectWildfly(homeFile.getCanonicalPath());
+            }
+        } catch (Exception e) {
+            logDetectError("identified wildfly and jboss eap failed", e);
+        }
+        return false;
+    }
+
+    private boolean detectWildfly(String severRoot) throws Exception {
+        File baseDir = new File(severRoot);
+        if (baseDir.exists() && baseDir.isDirectory()) {
+            String content = IOUtils.toString(new FileReader(new File(baseDir.getCanonicalPath() + File.separator + "README.txt")));
+            return content != null && content.toLowerCase().contains("wildfly");
+        }
+        return false;
+    }
 }

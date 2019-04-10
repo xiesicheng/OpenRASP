@@ -48,19 +48,18 @@ func init() {
 	if err != nil {
 		tools.Panic(tools.ErrCodeMongoInitFailed, "failed to get the count of user collection", err)
 	}
-
+	index := &mgo.Index{
+		Key:        []string{"name"},
+		Unique:     true,
+		Background: true,
+		Name:       "name",
+	}
+	err = mongo.CreateIndex(userCollectionName, index)
+	if err != nil {
+		tools.Panic(tools.ErrCodeMongoInitFailed, "failed to create name index for user collection", err)
+	}
 	if count <= 0 {
 
-		index := &mgo.Index{
-			Key:        []string{"name"},
-			Unique:     true,
-			Background: true,
-			Name:       "name",
-		}
-		err = mongo.CreateIndex(userCollectionName, index)
-		if err != nil {
-			tools.Panic(tools.ErrCodeMongoInitFailed, "failed to create name index for user collection", err)
-		}
 		hash, err := generateHashedPassword("admin@123")
 		if err != nil {
 			tools.Panic(tools.ErrCodeGeneratePasswdFailed, "failed to generate the default hashed password", err)
@@ -78,7 +77,7 @@ func init() {
 
 	} else {
 		var user *User
-		err := mongo.FindOne(userCollectionName, bson.M{}, &user)
+		err = mongo.FindOne(userCollectionName, bson.M{}, &user)
 		if err != nil {
 			tools.Panic(tools.ErrCodeMongoInitFailed, "failed to get admin user", err)
 		}
@@ -89,7 +88,7 @@ func init() {
 		if *conf.AppConfig.Flag.Password == "" {
 			tools.Panic(tools.ErrCodeResetUserFailed, "the password can not be empty", err)
 		}
-		err := resetUser(*conf.AppConfig.Flag.Password)
+		err := ResetUser(*conf.AppConfig.Flag.Password)
 		if err != nil {
 			tools.Panic(tools.ErrCodeResetUserFailed, "failed to reset administrator", err)
 		}
@@ -98,7 +97,7 @@ func init() {
 	}
 }
 
-func resetUser(newPwd string) error {
+func ResetUser(newPwd string) error {
 	err := validPassword(newPwd)
 	if err != nil {
 		return errors.New("invalid password: " + err.Error())
@@ -146,14 +145,14 @@ func GetLoginUserName() (userName string, err error) {
 	return user.Name, nil
 }
 
-func GetHashedLoginPassword() (pwd string, err error) {
-	var user *User
-	err = mongo.FindId(userCollectionName, userId, &user)
-	if err != nil {
-		return
-	}
-	return user.Password, nil
-}
+//func GetHashedLoginPassword() (pwd string, err error) {
+//	var user *User
+//	err = mongo.FindId(userCollectionName, userId, &user)
+//	if err != nil {
+//		return
+//	}
+//	return user.Password, nil
+//}
 
 func VerifyUser(userName string, pwd string) error {
 	var user *User

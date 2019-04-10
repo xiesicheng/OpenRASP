@@ -20,7 +20,7 @@ import com.baidu.openrasp.cloud.model.ErrorType;
 import com.baidu.openrasp.cloud.model.HookWhiteModel;
 import com.baidu.openrasp.cloud.syslog.DynamicConfigAppender;
 import com.baidu.openrasp.cloud.utils.CloudUtils;
-import com.baidu.openrasp.exception.ConfigLoadException;
+import com.baidu.openrasp.exceptions.ConfigLoadException;
 import com.baidu.openrasp.messaging.LogConfig;
 import com.baidu.openrasp.plugin.checker.CheckParameter;
 import com.baidu.openrasp.tool.FileUtil;
@@ -220,11 +220,10 @@ public class Config extends FileScanListener {
                             temp.putAll(parseHookWhite(hooks));
                         }
                     }
-                    if (!temp.isEmpty()) {
-                        HookWhiteModel.init(temp);
-                    }
+                    HookWhiteModel.init(temp);
                     continue;
-                } else if (item.key.equals(RESPONSE_HEADERS)) {
+                }
+                if (item.key.equals(RESPONSE_HEADERS)) {
                     if (properties != null) {
                         Object object = properties.get(item.key);
                         if (object instanceof Map) {
@@ -439,8 +438,8 @@ public class Config extends FileScanListener {
      */
     public synchronized void setPluginTimeout(String pluginTimeout) {
         this.pluginTimeout = Long.parseLong(pluginTimeout);
-        if (this.pluginTimeout < 0) {
-            this.pluginTimeout = 0;
+        if (this.pluginTimeout <= 0) {
+            this.pluginTimeout = 100;
         }
     }
 
@@ -482,8 +481,8 @@ public class Config extends FileScanListener {
      */
     public synchronized void setBodyMaxBytes(String bodyMaxBytes) {
         this.bodyMaxBytes = Integer.parseInt(bodyMaxBytes);
-        if (this.bodyMaxBytes < 0) {
-            this.bodyMaxBytes = 0;
+        if (this.bodyMaxBytes <= 0) {
+            this.bodyMaxBytes = 4096;
         }
     }
 
@@ -533,7 +532,7 @@ public class Config extends FileScanListener {
     public synchronized void setPluginMaxStack(String pluginMaxStack) {
         this.pluginMaxStack = Integer.parseInt(pluginMaxStack);
         if (this.pluginMaxStack < 0) {
-            this.pluginMaxStack = 0;
+            this.pluginMaxStack = 100;
         }
     }
 
@@ -590,7 +589,7 @@ public class Config extends FileScanListener {
     public synchronized void setLogMaxStackSize(String logMaxStackSize) {
         this.logMaxStackSize = Integer.parseInt(logMaxStackSize);
         if (this.logMaxStackSize < 0) {
-            this.logMaxStackSize = 0;
+            this.logMaxStackSize = 50;
         }
     }
 
@@ -610,8 +609,8 @@ public class Config extends FileScanListener {
      */
     public synchronized void setOgnlMinLength(String ognlMinLength) {
         this.ognlMinLength = Integer.parseInt(ognlMinLength);
-        if (this.ognlMinLength < 0) {
-            this.ognlMinLength = 0;
+        if (this.ognlMinLength <= 0) {
+            this.ognlMinLength = 30;
         }
     }
 
@@ -841,8 +840,8 @@ public class Config extends FileScanListener {
      */
     public synchronized void setSqlCacheCapacity(String sqlCacheCapacity) {
         this.sqlCacheCapacity = Integer.parseInt(sqlCacheCapacity);
-        if (this.sqlCacheCapacity <= 0) {
-            this.sqlCacheCapacity = 0;
+        if (this.sqlCacheCapacity < 0) {
+            this.sqlCacheCapacity = 1024;
         }
         if (Config.commonLRUCache == null || Config.commonLRUCache.maxSize() != this.sqlCacheCapacity) {
             Config.commonLRUCache = new LRUCache<String, String>(this.sqlCacheCapacity);
@@ -940,7 +939,7 @@ public class Config extends FileScanListener {
      */
     public synchronized void setSyslogReconnectInterval(String syslogReconnectInterval) {
         this.syslogReconnectInterval = Integer.parseInt(syslogReconnectInterval);
-        if (this.syslogReconnectInterval < 0) {
+        if (this.syslogReconnectInterval <= 0) {
             this.syslogReconnectInterval = 300000;
         }
     }
@@ -1129,7 +1128,7 @@ public class Config extends FileScanListener {
      */
     public void setLogMaxBackUp(String logMaxBackUp) {
         this.logMaxBackUp = Integer.parseInt(logMaxBackUp);
-        if (this.logMaxBackUp < 0) {
+        if (this.logMaxBackUp <= 0) {
             this.logMaxBackUp = 30;
         }
     }

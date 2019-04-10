@@ -40,6 +40,7 @@ import (
 	"crypto/tls"
 	"net"
 	"rasp-cloud/conf"
+	"net/url"
 )
 
 type App struct {
@@ -109,16 +110,7 @@ const (
 )
 
 var (
-	lastAlarmTime = time.Now().UnixNano() / 1000000
-	TestAlarmData = []map[string]interface{}{
-		{
-			"event_time":      time.Now().Format("2006-01-01 15:04:05"),
-			"attack_source":   "220.181.57.191",
-			"target":          "localhost",
-			"attack_type":     "sql",
-			"intercept_state": "block",
-		},
-	}
+	lastAlarmTime        = time.Now().UnixNano() / 1000000
 	DefaultGeneralConfig = map[string]interface{}{
 		"clientip.header":    "ClientIP",
 		"block.status_code":  302,
@@ -134,6 +126,8 @@ var (
 		"plugin.maxstack":           100,
 		"ognl.expression.minlength": 30,
 		"log.maxstack":              50,
+		"log.maxburst":              100,
+		"log.maxbackup":             30,
 		"syslog.tag":                "OpenRASP",
 		"syslog.url":                "",
 		"syslog.facility":           1,
@@ -147,18 +141,18 @@ func init() {
 	if err != nil {
 		tools.Panic(tools.ErrCodeMongoInitFailed, "failed to get app collection count", err)
 	}
-	if count <= 0 {
-		index := &mgo.Index{
-			Key:        []string{"name"},
-			Unique:     true,
-			Background: true,
-			Name:       "app_name",
-		}
-		err = mongo.CreateIndex(appCollectionName, index)
-		if err != nil {
-			tools.Panic(tools.ErrCodeMongoInitFailed, "failed to create index for app collection", err)
-		}
+
+	index := &mgo.Index{
+		Key:        []string{"name"},
+		Unique:     true,
+		Background: true,
+		Name:       "app_name",
 	}
+	err = mongo.CreateIndex(appCollectionName, index)
+	if err != nil {
+		tools.Panic(tools.ErrCodeMongoInitFailed, "failed to create index for app collection", err)
+	}
+
 	if *conf.AppConfig.Flag.StartType == conf.StartTypeDefault ||
 		*conf.AppConfig.Flag.StartType == conf.StartTypeForeground {
 		if count <= 0 {
@@ -166,7 +160,9 @@ func init() {
 		}
 		go startAlarmTicker(time.Second * time.Duration(conf.AppConfig.AlarmCheckInterval))
 	}
-	initEsIndex()
+	if *conf.AppConfig.Flag.StartType != conf.StartTypeReset {
+		initEsIndex()
+	}
 }
 
 func initEsIndex() error {
@@ -213,7 +209,6 @@ func startAlarmTicker(interval time.Duration) {
 		select {
 		case <-ticker.C:
 			HandleAttackAlarm()
-			handleRaspExpiredAlarm()
 		}
 	}
 }
@@ -243,15 +238,6 @@ func HandleAttackAlarm() {
 		}
 	}
 	lastAlarmTime = now + 1
-}
-
-func handleRaspExpiredAlarm() {
-	//defer func() {
-	//	if r := recover(); r != nil {
-	//		beego.Error("failed to handle alarm: ", r)
-	//	}
-	//}()
-	//Rasp
 }
 
 func AddApp(app *App) (result *App, err error) {
@@ -455,6 +441,25 @@ func PushAttackAlarm(app *App, total int64, alarms []map[string]interface{}, isT
 	}
 }
 
+func getTestAlarmData() []map[string]interface{} {
+	return []map[string]interface{}{
+		{
+			"event_time":      time.Now().Format("2006-01-01 15:06:05"),
+			"attack_source":   "220.181.57.191",
+			"attack_type":     "sql",
+			"intercept_state": "block",
+			"url":             "http://www.example.com/article.php?id=1",
+		},
+		{
+			"event_time":      time.Now().Format("2006-01-01 15:03:01"),
+			"attack_source":   "220.23.38.115",
+			"attack_type":     "command",
+			"intercept_state": "log",
+			"url":             "http://www.example.com/login.php?id=2",
+		},
+	}
+}
+
 func PushEmailAttackAlarm(app *App, total int64, alarms []map[string]interface{}, isTest bool) error {
 	var emailConf = app.EmailAlarmConf
 	if len(emailConf.RecvAddr) > 0 && emailConf.ServerAddr != "" {
@@ -476,14 +481,19 @@ func PushEmailAttackAlarm(app *App, total int64, alarms []map[string]interface{}
 		}
 		if isTest {
 			subject = "【测试邮件】" + subject
-			alarms = TestAlarmData
-			total = int64(len(TestAlarmData))
+			alarms = getTestAlarmData()
+			total = int64(len(alarms))
 		}
 		head := map[string]string{
-			"from":         emailAddr.String(),
-			"To":           strings.Join(emailConf.RecvAddr, ","),
-			"Content-Type": "text/html; charset=UTF-8",
-			"Subject":      subject,
+			"from":              emailAddr.String(),
+			"To":                strings.Join(emailConf.RecvAddr, ","),
+			"Subject":           subject,
+			"Content-Type":      "text/html; charset=UTF-8",
+			"X-Priority":        "3",
+			"X-MSMail-Priority": "Normal",
+			"X-Mailer":          "Microsoft Outlook Express 6.00.2900.2869",
+			"X-MimeOLE":         "Produced By Microsoft MimeOLE V6.00.2900.2869",
+			"ReturnReceipt":     "1",
 		}
 		t, err := template.ParseFiles("views/email.tpl")
 		if err != nil {
@@ -492,6 +502,7 @@ func PushEmailAttackAlarm(app *App, total int64, alarms []map[string]interface{}
 		}
 		alarmData := new(bytes.Buffer)
 		panelUrl, port := getPanelServerUrl()
+		handleAlarms(alarms)
 		err = t.Execute(alarmData, &emailTemplateParam{
 			Total:        total - int64(len(alarms)),
 			Alarms:       alarms,
@@ -507,6 +518,13 @@ func PushEmailAttackAlarm(app *App, total int64, alarms []map[string]interface{}
 			msg += fmt.Sprintf("%s: %s\r\n", k, v)
 		}
 		msg += "\r\n" + alarmData.String()
+		if !strings.Contains(emailConf.ServerAddr, ":") {
+			if emailConf.TlsEnable {
+				emailConf.ServerAddr += ":465"
+			} else {
+				emailConf.ServerAddr += ":25"
+			}
+		}
 		host, _, err := net.SplitHostPort(emailConf.ServerAddr)
 		if err != nil {
 			return handleError("failed to get email serve host: " + err.Error())
@@ -515,19 +533,39 @@ func PushEmailAttackAlarm(app *App, total int64, alarms []map[string]interface{}
 		if emailConf.Password == "" {
 			auth = nil
 		}
-
 		if emailConf.TlsEnable {
 			return sendEmailWithTls(emailConf, auth, msg)
-		} else {
-			return sendNormalEmail(emailConf, auth, msg)
 		}
+		return sendNormalEmail(emailConf, auth, msg)
 	} else {
 		beego.Error(
 			"failed to send email alarm: the email receiving address and email server address can not be empty", emailConf)
 		return errors.New("the email receiving address and email server address can not be empty")
 	}
-	beego.Debug("succeed in pushing email alarm for app: " + app.Name)
-	return nil
+}
+
+func handleAlarms(alarms []map[string]interface{}) {
+	for index, alarm := range alarms {
+		alarm["index"] = index + 1
+		if intercept, ok := logs.AttackInterceptMap[alarm["intercept_state"]]; ok {
+			alarm["intercept_state"] = intercept
+		}
+
+		if attackType, ok := logs.AttackTypeMap[alarm["attack_type"]]; ok {
+			alarm["attack_type"] = attackType
+		} else {
+			alarm["attack_type"] = "其他类型"
+		}
+
+		if alarm["url"] != nil {
+			if attackUrl, ok := alarm["url"].(string); ok && attackUrl != "" {
+				attackUrl, err := url.Parse(attackUrl)
+				if err == nil {
+					alarm["domain"] = attackUrl.Host
+				}
+			}
+		}
+	}
 }
 
 func getPanelServerUrl() (string, int) {
@@ -607,7 +645,7 @@ func smtpTlsDial(addr string) (*smtp.Client, error) {
 	if err != nil {
 		return nil, handleError("failed to get email serve host: " + err.Error())
 	}
-	conn, err := tls.DialWithDialer(&net.Dialer{Timeout: time.Second * 10}, "tcp", addr, nil)
+	conn, err := tls.DialWithDialer(&net.Dialer{Timeout: time.Second * 5}, "tcp", addr, nil)
 	if err != nil {
 		return nil, handleError("smtp dialing error: " + err.Error())
 	}
@@ -620,7 +658,7 @@ func PushHttpAttackAlarm(app *App, total int64, alarms []map[string]interface{},
 		body := make(map[string]interface{})
 		body["app_id"] = app.Id
 		if isTest {
-			body["data"] = TestAlarmData
+			body["data"] = getTestAlarmData()
 		} else {
 			body["data"] = alarms
 		}
@@ -630,14 +668,11 @@ func PushHttpAttackAlarm(app *App, total int64, alarms []map[string]interface{},
 			request.SetTimeout(10*time.Second, 10*time.Second)
 			response, err := request.Response()
 			if err != nil {
-				beego.Error("failed to push http alarms to: " + addr + ", with error: " + err.Error())
-				return err
+				return handleError("failed to push http alarms to: " + addr + ", with error: " + err.Error())
 			}
 			if response.StatusCode > 299 || response.StatusCode < 200 {
-				err := errors.New("failed to push http alarms to: " + addr + ", with status code: " +
+				return handleError("failed to push http alarms to: " + addr + ", with status code: " +
 					strconv.Itoa(response.StatusCode))
-				beego.Error(err.Error())
-				return err
 			}
 		}
 	} else {

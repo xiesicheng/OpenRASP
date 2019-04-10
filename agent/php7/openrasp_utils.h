@@ -44,7 +44,6 @@ void openrasp_scandir(const std::string dir_abs, std::vector<std::string> &plugi
 std::vector<std::string> format_source_code_arr();
 void format_source_code_arr(zval *source_code_arr);
 std::vector<std::string> format_debug_backtrace_arr();
-void format_debug_backtrace_arr(zval *backtrace_arr);
 std::string format_debug_backtrace_str();
 void format_debug_backtrace_str(zval *backtrace_str);
 std::string json_encode_from_zval(zval *value);
@@ -54,6 +53,6 @@ char *fetch_outmost_string_from_ht(HashTable *ht, const char *arKey);
 zend_string *fetch_request_body(size_t max_len);
 bool need_alloc_shm_current_sapi();
 std::string convert_to_header_key(char *key, size_t length);
-bool openrasp_parse_url(const std::string &origin_url, std::string &host, std::string &port);
+bool openrasp_parse_url(const std::string &origin_url, std::string &scheme, std::string &host, std::string &port);
 
 #endif

@@ -76,7 +76,7 @@ public abstract class AbstractClassHook {
         try {
             hookMethod(ctClass);
             return ctClass.toBytecode();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             e.printStackTrace();
             if (Config.getConfig().isDebugEnabled()) {
                 LOGGER.info("transform class " + ctClass.getName() + " failed", e);
@@ -314,11 +314,11 @@ public abstract class AbstractClassHook {
                 src += ",null);";
             }
             src = "try {" + src + "} catch (Throwable t) {if(t.getCause() != null && t.getCause().getClass()" +
-                    ".getName().equals(\"com.baidu.openrasp.exception.SecurityException\")){throw t;}}";
+                    ".getName().equals(\"com.baidu.openrasp.exceptions.SecurityException\")){throw t;}}";
         } else {
             src = invokeClassName + '.' + methodName + "(" + paramString + ");";
             src = "try {" + src + "} catch (Throwable t) {if(t.getClass()" +
-                    ".getName().equals(\"com.baidu.openrasp.exception.SecurityException\")){throw t;}}";
+                    ".getName().equals(\"com.baidu.openrasp.exceptions.SecurityException\")){throw t;}}";
         }
         return src;
     }

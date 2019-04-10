@@ -43,7 +43,10 @@ var algorithmConfig = {
         all_log: true,
 
         // 若 is_dev 开启，表示为线下环境，将开启更多消耗性能的检测算法
-        is_dev:  false
+        is_dev:  false,
+
+        // schema 版本
+        schema_version: 1
     },
 
     // SQL注入算法#1 - 匹配用户输入
@@ -56,6 +59,7 @@ var algorithmConfig = {
         min_length: 8,
         pre_filter: 'select|file|from|;',
         pre_enable: false,
+        lcs_search: false
     },
     
     // SQL注入算法#2 - 语句规范
@@ -65,11 +69,11 @@ var algorithmConfig = {
 
         // 粗规则 - 为了减少 tokenize 次数，当SQL语句包含一定特征时才进入
         // 另外，我们只需要处理增删改查的语句，虽然 show 语句也可以报错注入，但是算法2没必要处理
-        pre_filter: '^(select|insert|update|delete).*(;|\\/\\*|(?:\\d{1,2}\\s*,\\s*){2}|(?:null\\s*,\\s*){2}|0x[\\da-f]{8}|\\b(information_schema|outfile|dumpfile|load_file|benchmark|pg_sleep|sleep|is_srvrolemember|updatexml|extractvalue|hex|char|chr|mid|ord|ascii|bin))\\b',
+        pre_filter: ';|\\/\\*|(?:\\d{1,2}\\s*,\\s*){2}|(?:null\\s*,\\s*){2}|0x[\\da-f]{8}|\\W(information_schema|outfile|dumpfile|load_file|benchmark|pg_sleep|sleep|is_srvrolemember|updatexml|extractvalue|hex|char|chr|mid|ord|ascii|bin)\\W',
 
         feature: {
             // 是否禁止多语句执行，select ...; update ...;
-            stacked_query:      true,
+            stacked_query:      false,
 
             // 是否禁止16进制字符串，select 0x41424344
             no_hex:             true,
@@ -79,6 +83,9 @@ var algorithmConfig = {
 
             // 函数黑名单，具体列表见下方，select load_file(...)
             function_blacklist: true,
+
+            // 敏感函数频次， 具体列表见下方，select chr(123)||chr(123)||chr(123)=chr(123)||chr(123)||chr(123)
+            function_count:     true,
 
             // 拦截 union select NULL,NULL 或者 union select 1,2,3,4
             union_null:         true,
@@ -107,12 +114,14 @@ var algorithmConfig = {
 
             // 盲注函数，如有误报可删掉一些函数
             hex:              true,
-            char:             false,
-            chr:              true,
             mid:              true,
             ord:              true,
             ascii:            true,
             bin:              true
+        },
+        function_count: {
+            chr:              5,
+            char:             5
         }
     },
 
@@ -175,8 +184,9 @@ var algorithmConfig = {
 
     // 任意文件下载防护 - 来自用户输入
     readFile_userinput: {
-        name:   '算法1 - 用户输入匹配算法',
-        action: 'block'
+        name:       '算法1 - 用户输入匹配算法',
+        action:     'block',
+        lcs_search: false
     },
     // 任意文件下载防护 - 使用 file_get_contents 等函数读取 http(s):// 内容（注意，这里不区分是否为内网地址）
     readFile_userinput_http: {
@@ -205,15 +215,15 @@ var algorithmConfig = {
         name:   '算法1 - 拦截 NTFS ::$DATA 写入操作',
         action: 'block'
     },
-    // 写文件操作 - PUT 上传脚本文件
-    writeFile_PUT_script: {
-        name:   '算法2 - 拦截 PUT 方式上传 php/jsp 等脚本文件',
-        action: 'block'
-    },
+    // 写文件操作 - PUT 上传脚本文件 - 无法关联实际上传的文件和写文件操作，暂时注释掉
+    // writeFile_PUT_script: {
+    //     name:   '算法2 - 拦截 PUT 方式上传 php/jsp 等脚本文件',
+    //     action: 'block'
+    // },
     // 写文件操作 - 脚本文件
     // https://rasp.baidu.com/doc/dev/official.html#case-file-write
     writeFile_script: {
-        name:      '算法1 - 拦截所有 php/jsp 等脚本文件的写入操作',
+        name:      '算法2 - 拦截所有 php/jsp 等脚本文件的写入操作',
         reference: 'https://rasp.baidu.com/doc/dev/official.html#case-file-write',
         action:    'ignore'
     },
@@ -231,7 +241,8 @@ var algorithmConfig = {
     // 文件管理器 - 用户输入匹配，仅当直接读取绝对路径时才检测
     directory_userinput: {
         name:   '算法1 - 用户输入匹配算法',
-        action: 'block'
+        action: 'block',
+        lcs_search: false
     },
     // 文件管理器 - 反射方式列目录
     directory_reflect: {
@@ -247,7 +258,8 @@ var algorithmConfig = {
     // 文件包含 - 用户输入匹配
     include_userinput: {
         name:   '算法1 - 用户输入匹配算法',
-        action: 'block'
+        action: 'block',
+        lcs_search: false
     },
     // 文件包含 - 特殊协议
     include_protocol: {
@@ -402,15 +414,6 @@ var algorithmConfig = {
 
 // END ALGORITHM CONFIG //
 
-// 将所有拦截开关设置为 log; 如果是单元测试模式，忽略此选项
-if (algorithmConfig.meta.all_log && ! RASP.is_unittest) {
-    Object.keys(algorithmConfig).forEach(function (name) {
-        if (algorithmConfig[name].action == 'block') {
-           algorithmConfig[name].action = 'log'
-        }
-    })
-}
-
 // 配置挂载到全局 RASP 变量
 RASP.algorithmConfig = algorithmConfig
 
@@ -493,10 +496,33 @@ var sqliPrefilter2  = new RegExp(algorithmConfig.sql_policy.pre_filter)
 // 命令执行探针 - 常用渗透命令
 var cmdPostPattern  = new RegExp(algorithmConfig.command_common.pattern)
 
-// dev模式开启更多消耗性能的检测算法; 如果是单元测试模式，忽略此选项
-if (algorithmConfig.meta.is_dev && ! RASP.is_unittest) {
-    algorithmConfig.sql_userinput.pre_enable = false
-    commaNumRegex = /^$/
+if (! RASP.is_unittest)
+{
+   // 记录日志模式: 将所有 block 改为 log
+   if (algorithmConfig.meta.all_log)
+   {
+        Object.keys(algorithmConfig).forEach(function (name) {
+            if (algorithmConfig[name].action == 'block') 
+            {
+               algorithmConfig[name].action = 'log'
+            }
+        })
+    }
+
+    // 研发模式: 
+    // 1. 开启更多消耗性能的检测算法
+    // 2. 非攻击情况，检测到漏洞也报警
+    if (algorithmConfig.meta.is_dev) 
+    {
+        // 关闭 select 预过滤正则
+        algorithmConfig.sql_userinput.pre_enable = false
+
+        // 关闭 1,2,3 误报过滤
+        commaNumRegex = /^$/
+
+        // 关闭 xss_echo 非攻击过滤
+        algorithmConfig.xss_echo.filter_regex = ""
+    }
 }
 
 // 常用函数
@@ -649,7 +675,7 @@ function is_outside_webroot(appBasePath, realpath, path) {
 //
 // 或者以用户输入结尾
 // file_get_contents("/data/uploads/" . "../../../../../../../etc/passwd");
-function is_path_endswith_userinput(parameter, target, realpath, is_windows)
+function is_path_endswith_userinput(parameter, target, realpath, is_windows, is_lcs_search)
 {
     var verdict = false
 
@@ -673,6 +699,7 @@ function is_path_endswith_userinput(parameter, target, realpath, is_windows)
 
         // 去除多余/ 和 \ 的路径
         var simplifiedValue
+        var simplifiedTarget
 
         // Windows 下面
         // 传入 ../../../conf/tomcat-users.xml
@@ -681,17 +708,28 @@ function is_path_endswith_userinput(parameter, target, realpath, is_windows)
             value = value.replaceAll('/', '\\')
             target = target.replaceAll('/', '\\')
             realpath = realpath.replaceAll('/', '\\')
+            simplifiedTarget = target.replaceAll('\\\\','\\')
             simplifiedValue = value.replaceAll('\\\\','\\')
         } else{
+            simplifiedTarget = target.replaceAll('//','/')
             simplifiedValue = value.replaceAll('//','/')
         }
-
-        // 参数必须有跳出目录，或者是绝对路径
-        if ((target.endsWith(value) || target.endsWith(simplifiedValue))
-            && (has_traversal(value) || value == realpath || simplifiedValue == realpath))
-        {
-            verdict = true
-            return true
+        var simplifiedValues
+        if ( is_lcs_search ) {
+            simplifiedValues = lcs_search( simplifiedValue, simplifiedTarget )
+        }
+        else {
+            simplifiedValues = [simplifiedValue]
+        }
+        for(var i = 0, len = simplifiedValues.length; i < len; i++) {
+            simplifiedValue = simplifiedValues[i]
+            // 参数必须有跳出目录，或者是绝对路径
+            if ((target.endsWith(value) || simplifiedTarget.endsWith(simplifiedValue))
+                && (has_traversal(value) || value == realpath || simplifiedValue == realpath))
+            {
+                verdict = true
+                return true
+            }
         }
     })
 
@@ -699,7 +737,7 @@ function is_path_endswith_userinput(parameter, target, realpath, is_windows)
 }
 
 // 检查是否包含用户输入 - 适合目录
-function is_path_containing_userinput(parameter, target, is_windows)
+function is_path_containing_userinput(parameter, target, is_windows, is_lcs_search)
 {
     var verdict = false
 
@@ -714,17 +752,33 @@ function is_path_containing_userinput(parameter, target, is_windows)
 
         if (is_windows) {
             value = value.replaceAll('/', '\\')
+            value = value.replaceAll('\\\\', '\\')
+            target = target.replaceAll('/', '\\')
+            target = target.replaceAll('\\\\', '\\')
         }
-
-        // java 下面，传入 /usr/ 会变成 /usr，所以少匹配一个字符
-        var value_noslash = value.substr(0, value.length - 1)
-
-        // 只处理非数组、hash情况
-        if (has_traversal(value) && target.indexOf(value_noslash) != -1) {
-            verdict = true
-            return true
+        else {
+            value = value.replaceAll('//', '/')
+            target = target.replaceAll('//', '/')
         }
-
+        var values
+        if (is_lcs_search) {
+            values = lcs_search(value, target)
+        }
+        else {
+            // java 下面，传入 /usr/ 会变成 /usr，所以少匹配一个字符
+            if ( value.charAt(value.length - 1) == "/" || 
+                 value.charAt(value.length - 1) == "\\" ) {
+                value = value.substr(0, value.length - 1)
+            }
+            values = [value]
+        }
+        for(var i = 0, len = values.length; i < len; i++) {
+            // 只处理非数组、hash情况
+            if (has_traversal(values[i]) && target.indexOf(values[i]) != -1) {
+                verdict = true
+                return true
+            }
+        }
     })
     return verdict
 }
@@ -777,6 +831,55 @@ function is_token_changed(raw_tokens, userinput_idx, userinput_length, distance)
     return false
 }
 
+// 查找str1和str2的最长公共子串，返回为所有最长子串组成的数组
+function lcs_search(str1, str2){
+    var len1 = str1.length;
+    var len2 = str2.length;
+    var dp_arr = [[],[]]
+    var pre = 1
+    var now = 0
+    var result =0
+    var result_pos = []
+
+    for (var i = 0; i <= len2+1; i ++) {
+        dp_arr[0][i] = 0
+        dp_arr[1][i] = 0
+    }
+    for (var i = 0; i <= len1; i ++) {
+        for (var j = 0; j <= len2; j ++) {
+            if ( i == 0 || j == 0 ){
+                dp_arr[now][j] = 0
+            }
+            else if ( str1[i-1] == str2[j-1] ) {
+                dp_arr[now][j] = dp_arr[pre][j-1] + 1
+                if (dp_arr[now][j] > result){
+                    result = dp_arr[now][j]
+                    result_pos = [i - result]
+                }else if (dp_arr[now][j] == result){
+                    result_pos.push( i - result )
+                }
+            }
+            else {
+                dp_arr[now][j] = 0
+            }
+        }
+        if( now == 0 ){
+            now = 1
+            pre = 0
+        }
+        else {
+            now = 0
+            pre = 1
+        }
+    }
+    var result_pos_set = new Set(result_pos)
+    var result_str = new Set()
+    for (var item of result_pos_set) {
+        result_str.add(str1.substr(item, result))
+    }
+    return Array.from(result_str)
+}
+
 // 下个版本将会支持翻译，目前还需要暴露一个 getText 接口给插件
 function _(message, args) 
 {
@@ -793,11 +896,10 @@ function _(message, args)
 
 // 开始
 
-if (RASP.get_jsengine() !== 'v8') {
-    // 在java语言下面，为了提高性能，SQLi/SSRF检测逻辑改为java实现
-    // 所以，我们需要把一部分配置传递给java
-
-    // 1.0.0 RC2 会删除 RASP.config_set，统一在全局的 RASP.algorithmConfig 获取配置
+// 若开启「研发模式」，将只使用JS插件
+if (! algorithmConfig.meta.is_dev && RASP.get_jsengine() !== 'v8') {
+    // v1.1 之前的版本，SQL/SSRF 使用 java 原生实现，需要将插件配置传递给 java
+    // v1.0 RC1 之前仍然需要使用 RASP.config_set 传递配置
     if (RASP.config_set) {
         RASP.config_set('algorithm.config', JSON.stringify(algorithmConfig))
     }
@@ -805,11 +907,11 @@ if (RASP.get_jsengine() !== 'v8') {
     // 对于PHP + V8，性能还不错，我们保留JS检测逻辑
     plugin.register('sql', function (params, context) {
 
-        var reason     = false
-        var min_length = algorithmConfig.sql_userinput.min_length
-        var parameters = context.parameter || {}
+        var reason          = false
+        var min_length      = algorithmConfig.sql_userinput.min_length
+        var parameters      = context.parameter || {}
         var json_parameters = context.json || {}
-        var raw_tokens = []
+        var raw_tokens      = []
 
         function _run(values, name) {
             var reason = false
@@ -824,31 +926,43 @@ if (RASP.get_jsengine() !== 'v8') {
                     return false
                 }
 
+                // 使用lcs查找或直接查找
+                if (algorithmConfig.sql_userinput.lcs_search) {
+                    check_value = lcs_search(params.query, value)
+                }
+                else{
+                    check_value = [value]
+                }
+
                 // 检查用户输入是否存在于SQL中
-                var userinput_idx = params.query.indexOf(value)
-                if (userinput_idx == -1) {
-                    return false
-                }
+                for(var i = 0, len = check_value.length; i < len; i++) {
+                    value = check_value[i]
+                
+                    var userinput_idx = params.query.indexOf(value)
+                    if (userinput_idx == -1) {
+                        return false
+                    }
 
-                // 过滤已知误报
-                // 1,2,3,4,5 -> IN(1,2,3,4,5)
-                if (commaNumRegex.test(value)) {
-                    return false
-                }
+                    // 过滤已知误报
+                    // 1,2,3,4,5 -> IN(1,2,3,4,5)
+                    if (commaNumRegex.test(value)) {
+                        return false
+                    }
 
-                // 预过滤正则，如果开启
-                if (algorithmConfig.sql_userinput.pre_enable && ! sqliPrefilter1.test(value)) {
-                    return false
-                }
+                    // 预过滤正则，如果开启
+                    if (algorithmConfig.sql_userinput.pre_enable && ! sqliPrefilter1.test(value)) {
+                        return false
+                    }
 
-                // 懒加载，需要的时候初始化 token
-                if (raw_tokens.length == 0) {
-                    raw_tokens = RASP.sql_tokenize(params.query, params.server)
-                }
+                    // 懒加载，需要的时候初始化 token
+                    if (raw_tokens.length == 0) {
+                        raw_tokens = RASP.sql_tokenize(params.query, params.server)
+                    }
 
-                if (is_token_changed(raw_tokens, userinput_idx, value.length)) {
-                    reason = _("SQLi - SQL query structure altered by user input, request parameter name: %1%", [name])
-                    return true
+                    if (is_token_changed(raw_tokens, userinput_idx, value.length)) {
+                        reason = _("SQLi - SQL query structure altered by user input, request parameter name: %1%", [name])
+                        return true
+                    }
                 }
             })
             return reason
@@ -876,20 +990,20 @@ if (RASP.get_jsengine() !== 'v8') {
                 }
             })
 
-            if(Object.keys(json_parameters).length > 0) {
+            if (Object.keys(json_parameters).length > 0) {
                 var jsons = [ [json_parameters, "input_json"] ]
-                while(jsons.length > 0 && reason === false) {
+                while (jsons.length > 0 && reason === false) {
                     var json_arr = jsons.pop()
                     var crt_json_key = json_arr[1]
                     var json_obj = json_arr[0]
                     for (item in json_obj) {
-                        if(typeof json_obj[item] == "string") {
+                        if (typeof json_obj[item] == "string") {
                             reason = _run([json_obj[item]], crt_json_key + "->" + item)
                             if(reason !== false) {
                                 break;
                             }
                         }
-                        else if(typeof json_obj[item] == "object") {
+                        else if (typeof json_obj[item] == "object") {
                             jsons.push([json_obj[item], crt_json_key + "->" + item])
                         }
                     }
@@ -919,8 +1033,12 @@ if (RASP.get_jsengine() !== 'v8') {
                 }
             }
 
-            var features  = algorithmConfig.sql_policy.feature
-            var func_list = algorithmConfig.sql_policy.function_blacklist
+            var features        = algorithmConfig.sql_policy.feature
+            var func_list       = algorithmConfig.sql_policy.function_blacklist
+            var func_count_list = algorithmConfig.sql_policy.function_count
+
+            // 黑名单函数计数
+            var func_count_arr  = {}
 
             // 转换小写，避免大小写绕过
             var tokens_lc = raw_tokens.map(function(v) {
@@ -969,12 +1087,31 @@ if (RASP.get_jsengine() !== 'v8') {
                 else if (features['function_blacklist'] && i > 0 && tokens_lc[i][0] === '(')
                 {
                     var func_name = tokens_lc[i - 1]
-
-                    if (func_list[func_name]) {
+                    if (func_list[func_name])
+                    {
                         reason = _("SQLi - Detected dangerous method call %1%() in sql query", [func_name])
                         break
                     }
-                }
+
+                    if (features['function_count'] && func_count_list[func_name])
+                    {
+                        if (! func_count_arr[func_name])
+                        {
+                            func_count_arr[func_name] = 1
+                        }
+                        else
+                        {
+                            func_count_arr[func_name] ++
+                        }
+
+                        // 超过次数拦截
+                        if (func_count_arr[func_name] >= func_count_list[func_name]) 
+                        {
+                            reason = _("SQLi - Detected multiple call to dangerous method %1%() in sql query (%2% times)", [func_name, func_count_arr[func_name]])
+                            break
+                        }
+                    }
+                }            
                 else if (features['into_outfile'] && i < tokens_lc.length - 2 && tokens_lc[i] == 'into')
                 {
                     if (tokens_lc[i + 1] == 'outfile' || tokens_lc[i + 1] == 'dumpfile')
@@ -987,14 +1124,12 @@ if (RASP.get_jsengine() !== 'v8') {
                 {
                     // `information_schema`.tables
                     // information_schema  .tables
-                    var parts = tokens_lc[i + 1].replaceAll('`', '').split('.')
-                    if (parts.length == 2)
+                    var part1 = tokens_lc[i + 1].replaceAll('`', '')
+                    var part2 = tokens_lc[i + 3].replaceAll('`', '')
+                    if (part1 == 'information_schema' && part2 == 'tables' )
                     {
-                        if (parts[0].trim() == 'information_schema' && parts[1].trim() == 'tables')
-                        {
-                            reason = _("SQLi - Detected access to MySQL information_schema.tables table")
-                            break
-                        }
+                        reason = _("SQLi - Detected access to MySQL information_schema.tables table")
+                        break
                     }
                 }
             }
@@ -1021,18 +1156,12 @@ if (RASP.get_jsengine() !== 'v8') {
         var reason   = false
         var action   = 'ignore'
 
-        // 1.0 RC1 没有过滤 hostname 为空的情况，为了保证兼容性在这里加个判断
-        if (hostname.length === 0)
-        {
-            return clean
-        }
-
         // 算法1 - 当参数来自用户输入，且为内网IP，判定为SSRF攻击
         if (algorithmConfig.ssrf_userinput.action != 'ignore')
         {
             if (is_from_userinput(context.parameter, url))
             {
-                if (ip.length && /^(127|192|172|10)\./.test(ip[0]))
+                if (ip.length && /^(127|10|192\.168|172\.(1[6-9]|2[0-9]|3[01]))\./.test(ip[0]))
                 {
                     return {
                         action:     algorithmConfig.ssrf_userinput.action,
@@ -1067,10 +1196,10 @@ if (RASP.get_jsengine() !== 'v8') {
             }
         }
 
-        // 算法3 - 检测 AWS/Aliyun 私有地址
+        // 算法3 - 检测 AWS/Aliyun/GoogleCloud 私有地址
         if (algorithmConfig.ssrf_aws.action != 'ignore')
         {
-            if (hostname == '169.254.169.254' || hostname == '100.100.100.200')
+            if (hostname == '169.254.169.254' || hostname == '100.100.100.200' || hostname == 'metadata.google.internal')
             {
                 return {
                     action:     algorithmConfig.ssrf_aws.action,
@@ -1094,7 +1223,7 @@ if (RASP.get_jsengine() !== 'v8') {
         {
             var reason = false
 
-            if (!isNaN(hostname))
+            if (!isNaN(hostname) && hostname.length != 0)
             {
                 reason = _("SSRF - Requesting numeric IP address: %1%", [hostname])
             }
@@ -1166,7 +1295,7 @@ plugin.register('directory', function (params, context) {
     // 算法2 - 用户输入匹配。
     if (algorithmConfig.directory_userinput.action != 'ignore')
     {
-        if (is_path_containing_userinput(parameter, params.path, is_windows))
+        if (is_path_containing_userinput(parameter, params.path, is_windows, algorithmConfig.directory_userinput.lcs_search))
         {
             return {
                 action:     algorithmConfig.directory_userinput.action,
@@ -1217,7 +1346,7 @@ plugin.register('readFile', function (params, context) {
     {
         // ?path=/etc/./hosts
         // ?path=../../../etc/passwd
-        if (is_path_endswith_userinput(parameter, params.path, params.realpath, is_win))
+        if (is_path_endswith_userinput(parameter, params.path, params.realpath, is_win, algorithmConfig.readFile_userinput.lcs_search))
         {
             return {
                 action:     algorithmConfig.readFile_userinput.action,
@@ -1317,7 +1446,7 @@ plugin.register('include', function (params, context) {
     // ?file=../../../../../var/log/httpd/error.log
     if (algorithmConfig.include_userinput.action != 'ignore')
     {
-        if (is_path_endswith_userinput(parameter, url, realpath, is_win))
+        if (is_path_endswith_userinput(parameter, url, realpath, is_win, algorithmConfig.include_userinput.lcs_search))
         {
             return {
                 action:     algorithmConfig.include_userinput.action,
@@ -1368,20 +1497,20 @@ plugin.register('writeFile', function (params, context) {
         }
     }
 
-    // PUT 上传脚本文件
-    if (context.method == 'put' &&
-        algorithmConfig.writeFile_PUT_script.action != 'ignore')
-    {
-        if (scriptFileRegex.test(params.realpath))
-        {
-            return {
-                action:     algorithmConfig.writeFile_PUT_script.action,
-                message:    _("File upload - Using HTTP PUT method to upload a webshell", [params.realpath]),
-                confidence: 95,
-                algorithm:  'writeFile_PUT_script'
-            }
-        }
-    }
+    // PUT 上传脚本文件 - 有个关联问题需要解决，暂时注释掉
+    // if (context.method == 'put' &&
+    //     algorithmConfig.writeFile_PUT_script.action != 'ignore')
+    // {
+    //     if (scriptFileRegex.test(params.realpath))
+    //     {
+    //         return {
+    //             action:     algorithmConfig.writeFile_PUT_script.action,
+    //             message:    _("File upload - Using HTTP PUT method to upload a webshell", [params.realpath]),
+    //             confidence: 95,
+    //             algorithm:  'writeFile_PUT_script'
+    //         }
+    //     }
+    // }
 
     // 关于这个算法，请参考这个插件定制文档
     // https://rasp.baidu.com/doc/dev/official.html#case-file-write
