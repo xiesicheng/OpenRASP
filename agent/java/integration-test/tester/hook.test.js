@@ -65,6 +65,7 @@ describe(process.env['SERVER'] || 'server', function () {
             return axios.get(point + '.jsp?test=a&test=b')
             .should.eventually.have.property('data')
             .match(/blocked/);
+
                     // .then(rst => {
                     // const content = require('fs').readFileSync(PLUGIN_LOG).toString()
                     // console.log(content)
