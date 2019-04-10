@@ -11,19 +11,15 @@ matrix:
     - env: OPENRASP_LANG=java SERVER=tomcat8
       language: java
       jdk: openjdk8
-    include:
     - env: OPENRASP_LANG=java SERVER=jboss7
       language: java
       jdk: openjdk8
-    include:
     - env: OPENRASP_LANG=java SERVER=resin4
       language: java
       jdk: openjdk8
-    include:
     - env: OPENRASP_LANG=java SERVER=wildfly8
       language: java
       jdk: openjdk8
-    include:
     - env: OPENRASP_LANG=java SERVER=wildfly10
       language: java
       jdk: openjdk8
