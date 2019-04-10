@@ -16,16 +16,51 @@
 
 #include "openrasp_v8_bundle.h"
 #include "js/openrasp_v8_js.h"
+#include "flex/flex.h"
 
 namespace openrasp
 {
+static void flex_callback(const v8::FunctionCallbackInfo<v8::Value> &info)
+{
+    v8::Isolate *isolate = info.GetIsolate();
+    if (info.Length() < 2 || !info[0]->IsString() || !info[1]->IsString())
+    {
+        return;
+    }
+    v8::String::Utf8Value str(info[0]);
+    v8::String::Utf8Value lexer_mode(info[1]);
+
+    char *input = *str;
+    int input_len = str.length();
+
+    flex_token_result token_result = flex_lexing(input, input_len, *lexer_mode);
+
+    int *tokens = token_result.result;
+    int length = token_result.result_len;
+    v8::Local<v8::Array> arr = v8::Array::New(isolate, (length - 1) / 2);
+    for (int i = 0; i < length; i += 2)
+    {
+        v8::Local<v8::Integer> token_start = v8::Integer::New(isolate, *(tokens + i));
+        v8::Local<v8::Integer> token_stop = v8::Integer::New(isolate, *(tokens + i + 1));
+        auto item = v8::Object::New(isolate);
+        item->Set(openrasp::NewV8String(isolate, "start"), token_start);
+        item->Set(openrasp::NewV8String(isolate, "stop"), token_stop);
+        item->Set(openrasp::NewV8String(isolate, "text"),
+                  openrasp::NewV8String(isolate, input + *(tokens + i),
+                                        size_t(sizeof(char) * (*(tokens + i + 1) - *(tokens + i) + 1))));
+        arr->Set(i / 2, item);
+    }
+    free(tokens);
+    info.GetReturnValue().Set(arr);
+}
 Snapshot::Snapshot(const char *data, size_t raw_size, uint64_t timestamp)
 {
     this->data = data;
     this->raw_size = raw_size;
     this->timestamp = timestamp;
-    this->external_references = new intptr_t[2]{
+    this->external_references = new intptr_t[3]{
         reinterpret_cast<intptr_t>(log_callback),
+        reinterpret_cast<intptr_t>(flex_callback),
         0,
     };
 }
@@ -76,14 +111,13 @@ Snapshot::Snapshot(const std::string &config, const std::vector<PluginFile> &plu
         v8_stdout->Set(NewV8String(isolate, "write"), log);
         global->Set(NewV8String(isolate, "stdout"), v8_stdout);
         global->Set(NewV8String(isolate, "stderr"), v8_stdout);
+        global->Set(NewV8String(isolate, "flex_tokenize"), v8::Function::New(isolate, flex_callback));
 
         std::vector<PluginFile> internal_js_list = {
             PluginFile{"console.js", {reinterpret_cast<const char *>(console_js), console_js_len}},
             PluginFile{"checkpoint.js", {reinterpret_cast<const char *>(checkpoint_js), checkpoint_js_len}},
             PluginFile{"error.js", {reinterpret_cast<const char *>(error_js), error_js_len}},
             PluginFile{"context.js", {reinterpret_cast<const char *>(context_js), context_js_len}},
-            PluginFile{"sql_tokenize.js", {reinterpret_cast<const char *>(sql_tokenize_js), sql_tokenize_js_len}},
-            PluginFile{"cmd_tokenize.js", {reinterpret_cast<const char *>(cmd_tokenize_js), cmd_tokenize_js_len}},
             PluginFile{"rasp.js", {reinterpret_cast<const char *>(rasp_js), rasp_js_len}},
         };
         for (auto &js_src : internal_js_list)

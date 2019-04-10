@@ -80,8 +80,6 @@ if test "$PHP_OPENRASP" != "no"; then
     xxd -i context.js >> openrasp_v8_js.h
     xxd -i error.js >> openrasp_v8_js.h
     xxd -i rasp.js >> openrasp_v8_js.h
-    xxd -i sql_tokenize.js >> openrasp_v8_js.h
-    xxd -i cmd_tokenize.js >> openrasp_v8_js.h
     popd >/dev/null 2>&1
   ], [builddir="$OPENRASP_SRCDIR/js"])
 
@@ -760,6 +758,7 @@ int main() {
     agent/shared_log_manager.cc \
     agent/shared_config_manager.cc \
     agent/mm/shm_manager.cc \
+    flex/lex.cc \
     $LIBFSWATCH_SOURCE \
     $YAML_CPP_SOURCE \
     $OPENRASP_REMOTE_MANAGER_SOURCE \
