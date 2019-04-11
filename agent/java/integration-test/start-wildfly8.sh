@@ -15,3 +15,5 @@ cp app.war ${SERVER_HOME}/standalone/deployments
 java -jar RaspInstall.jar -install ${SERVER_HOME}
 
 nohup sh ${SERVER_HOME}/bin/standalone.sh &
+
+sleep 10
