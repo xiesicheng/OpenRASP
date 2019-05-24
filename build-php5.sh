@@ -26,7 +26,7 @@ case "$(uname -s)" in
 esac
 
 # 编译 openrasp-v8
-git submodule update --init --recursive
+git submodule update --init --recursive --depth=1
 mkdir -p openrasp-v8/php/build
 cd openrasp-v8/php/build
 cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
