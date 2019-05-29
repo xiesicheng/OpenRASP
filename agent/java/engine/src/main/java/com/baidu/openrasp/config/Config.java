@@ -1126,7 +1126,7 @@ public class Config extends FileScanListener {
      *
      * @param logMaxBackUp log4j最大日志备份天数
      */
-    public void setLogMaxBackUp(String logMaxBackUp) {
+    public synchronized void setLogMaxBackUp(String logMaxBackUp) {
         this.logMaxBackUp = Integer.parseInt(logMaxBackUp);
         if (this.logMaxBackUp <= 0) {
             this.logMaxBackUp = 30;
@@ -1203,8 +1203,6 @@ public class Config extends FileScanListener {
                 setSyslogFacility(value);
             } else if (Item.SYSLOG_RECONNECT_INTERVAL.key.equals(key)) {
                 setSyslogReconnectInterval(value);
-            } else if (Item.HOOK_WHITE_ALL.key.equals(key)) {
-                setHookWhiteAll(value);
             } else if (Item.LOG_MAXBURST.key.equals(key)) {
                 setLogMaxBurst(value);
             } else if (Item.HEARTBEAT_INTERVAL.key.equals(key)) {
