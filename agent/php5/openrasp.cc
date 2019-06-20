@@ -45,6 +45,7 @@ extern "C"
 #ifdef HAVE_OPENRASP_REMOTE_MANAGER
 #include "agent/openrasp_agent_manager.h"
 #endif
+#include "taint/taint.h"
 
 using openrasp::ConfigHolder;
 
@@ -190,6 +191,7 @@ PHP_MINIT_FUNCTION(openrasp)
     int result;
     result = PHP_MINIT(openrasp_hook)(INIT_FUNC_ARGS_PASSTHRU);
     result = PHP_MINIT(openrasp_inject)(INIT_FUNC_ARGS_PASSTHRU);
+    zend_set_user_opcode_handler(ZEND_CONCAT, openrasp_concat_handler);
 
 #ifdef HAVE_OPENRASP_REMOTE_MANAGER
     if (remote_active && openrasp::oam)
@@ -262,6 +264,10 @@ PHP_RINIT_FUNCTION(openrasp)
         result = PHP_RINIT(openrasp_hook)(INIT_FUNC_ARGS_PASSTHRU);
         result = PHP_RINIT(openrasp_v8)(INIT_FUNC_ARGS_PASSTHRU);
         result = PHP_RINIT(openrasp_output_detect)(INIT_FUNC_ARGS_PASSTHRU);
+
+        zval *http_global_get = fetch_http_globals(TRACK_VARS_GET TSRMLS_CC);
+        openrasp_taint_mark_strings(http_global_get, "$_GET" TSRMLS_CC);
+        
 #ifdef HAVE_OPENRASP_REMOTE_MANAGER
         if (remote_active && openrasp::oam)
         {
@@ -289,6 +295,7 @@ PHP_RSHUTDOWN_FUNCTION(openrasp)
         hook_without_params(REQUEST_END TSRMLS_CC);
         result = PHP_RSHUTDOWN(openrasp_log)(SHUTDOWN_FUNC_ARGS_PASSTHRU);
         result = PHP_RSHUTDOWN(openrasp_inject)(SHUTDOWN_FUNC_ARGS_PASSTHRU);
+        OPENRASP_G(sequenceManager).clear();
     }
     return SUCCESS;
 }
@@ -419,7 +426,7 @@ static void hook_without_params(OpenRASPCheckType check_type TSRMLS_DC)
 
         auto params = v8::Object::New(isolate);
         check_result = Check(isolate, openrasp::NewV8String(isolate, get_check_type_name(check_type)), params,
-                                  OPENRASP_CONFIG(plugin.timeout.millis));
+                             OPENRASP_CONFIG(plugin.timeout.millis));
     }
     if (check_result == openrasp::CheckResult::kBlock)
     {

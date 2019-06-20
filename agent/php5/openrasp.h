@@ -38,6 +38,7 @@ extern "C"
 
 #include "openrasp_conf_holder.h"
 #include "openrasp_error.h"
+#include "taint/sequence_manager.h"
 
 #ifndef ZEND_SHUTDOWN_MODULE_GLOBALS
 #ifdef ZTS
@@ -50,6 +51,7 @@ extern "C"
 #endif
 
 ZEND_BEGIN_MODULE_GLOBALS(openrasp)
+taint::SequenceManager sequenceManager;
 openrasp::ConfigHolder config;
 ZEND_END_MODULE_GLOBALS(openrasp)
 
