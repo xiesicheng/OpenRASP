@@ -124,7 +124,7 @@ using taint::NodeSequence;
         OPENRASP_G(sequenceManager).registerSequence(ptr);                                                                      \
     } while (0)
 
-#define OPENRASP_TAINT_POSSIBLE(zv) (Z_TYPE_P(zv) == IS_STRING && *((unsigned *)(Z_STRVAL_P(zv) + Z_STRLEN_P(zv) + OPENRASP_TAINT_POINTER_LENGTH + 1)) == OPENRASP_TAINT_MAGIC_POSSIBLE)
+#define OPENRASP_TAINT_POSSIBLE(zv) (Z_TYPE_P(zv) == IS_STRING && Z_STRLEN_P(zv) && *((unsigned *)(Z_STRVAL_P(zv) + Z_STRLEN_P(zv) + OPENRASP_TAINT_POINTER_LENGTH + 1)) == OPENRASP_TAINT_MAGIC_POSSIBLE)
 #define OPENRASP_TAINT_SEQUENCE(zv) (OPENRASP_TAINT_POSSIBLE(zv) ? **((NodeSequence **)(Z_STRVAL_P(zv) + Z_STRLEN_P(zv) + 1)) : NodeSequence(Z_TYPE_P(zv) == IS_STRING ? Z_STRLEN_P(zv) : 0))
 
 typedef struct _openrasp_free_op
@@ -137,3 +137,6 @@ typedef struct _openrasp_free_op
 void openrasp_taint_mark_strings(zval *symbol_table, std::string varsSource TSRMLS_DC);
 int openrasp_concat_handler(ZEND_OPCODE_HANDLER_ARGS);
 int openrasp_assign_concat_handler(ZEND_OPCODE_HANDLER_ARGS);
+int openrasp_add_char_handler(ZEND_OPCODE_HANDLER_ARGS);
+int openrasp_assign_handler(ZEND_OPCODE_HANDLER_ARGS);
+int openrasp_add_var_handler(ZEND_OPCODE_HANDLER_ARGS);

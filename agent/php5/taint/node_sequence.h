@@ -25,7 +25,9 @@ public:
   size_t length() const;
 
   NodeSequence &insert(size_t pos, const NodeSequence &inns);
+  NodeSequence &insert(size_t pos, size_t lengthUntainted);
   NodeSequence &append(const NodeSequence &inns);
+  NodeSequence &append(size_t lengthUntainted);
   NodeSequence &erase(size_t pos, size_t len = npos);
   NodeSequence &sub(size_t pos, size_t len = npos);
   std::string dump() const;
