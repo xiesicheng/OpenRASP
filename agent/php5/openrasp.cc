@@ -68,6 +68,7 @@ PHP_INI_ENTRY1("openrasp.app_id", nullptr, PHP_INI_SYSTEM, OnUpdateOpenraspCStri
 PHP_INI_ENTRY1("openrasp.app_secret", nullptr, PHP_INI_SYSTEM, OnUpdateOpenraspCString, &openrasp_ini.app_secret)
 PHP_INI_ENTRY1("openrasp.remote_management_enable", "0", PHP_INI_SYSTEM, OnUpdateOpenraspBool, &openrasp_ini.remote_management_enable)
 PHP_INI_ENTRY1("openrasp.heartbeat_interval", "180", PHP_INI_SYSTEM, OnUpdateOpenraspHeartbeatInterval, &openrasp_ini.heartbeat_interval)
+PHP_INI_ENTRY1("openrasp.taint_enable", "0", PHP_INI_SYSTEM, OnUpdateOpenraspBool, &openrasp_ini.taint_enable)
 PHP_INI_END()
 
 #if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION <= 3)
@@ -191,7 +192,11 @@ PHP_MINIT_FUNCTION(openrasp)
     int result;
     result = PHP_MINIT(openrasp_hook)(INIT_FUNC_ARGS_PASSTHRU);
     result = PHP_MINIT(openrasp_inject)(INIT_FUNC_ARGS_PASSTHRU);
-    zend_set_user_opcode_handler(ZEND_CONCAT, openrasp_concat_handler);
+    if (openrasp_ini.taint_enable)
+    {
+        zend_set_user_opcode_handler(ZEND_CONCAT, openrasp_concat_handler);
+        zend_set_user_opcode_handler(ZEND_ASSIGN_CONCAT, openrasp_assign_concat_handler);
+    }
 
 #ifdef HAVE_OPENRASP_REMOTE_MANAGER
     if (remote_active && openrasp::oam)
@@ -265,9 +270,12 @@ PHP_RINIT_FUNCTION(openrasp)
         result = PHP_RINIT(openrasp_v8)(INIT_FUNC_ARGS_PASSTHRU);
         result = PHP_RINIT(openrasp_output_detect)(INIT_FUNC_ARGS_PASSTHRU);
 
-        zval *http_global_get = fetch_http_globals(TRACK_VARS_GET TSRMLS_CC);
-        openrasp_taint_mark_strings(http_global_get, "$_GET" TSRMLS_CC);
-        
+        if (openrasp_ini.taint_enable)
+        {
+            zval *http_global_get = fetch_http_globals(TRACK_VARS_GET TSRMLS_CC);
+            openrasp_taint_mark_strings(http_global_get, "$_GET" TSRMLS_CC);
+        }
+
 #ifdef HAVE_OPENRASP_REMOTE_MANAGER
         if (remote_active && openrasp::oam)
         {

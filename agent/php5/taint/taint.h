@@ -12,6 +12,17 @@ using taint::NodeSequence;
 #define OPENRASP_TAINT_POINTER_LENGTH sizeof(uintptr_t)
 #define OPENRASP_TAINT_SUFFIX_LENGTH (OPENRASP_TAINT_POINTER_LENGTH + OPENRASP_TAINT_MAGIC_LENGTH)
 
+#ifndef MAKE_REAL_ZVAL_PTR
+#define MAKE_REAL_ZVAL_PTR(val)       \
+    do                                \
+    {                                 \
+        zval *_tmp;                   \
+        ALLOC_ZVAL(_tmp);             \
+        INIT_PZVAL_COPY(_tmp, (val)); \
+        (val) = _tmp;                 \
+    } while (0)
+#endif
+
 #if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION < 4)
 #define OPENRASP_OP1_TYPE(n) ((n)->op1.op_type)
 #define OPENRASP_OP2_TYPE(n) ((n)->op2.op_type)
@@ -68,6 +79,43 @@ using taint::NodeSequence;
 #define OPENRASP_CV_DEF_OF(i) (EG(active_op_array)->vars[i])
 #define OPENRASP_TMP_FREE(z) (zval *)(((zend_uintptr_t)(z)) | 1L)
 
+#define OPENRASP_AI_USE_PTR(ai)     \
+    if ((ai).ptr_ptr)               \
+    {                               \
+        (ai).ptr = *((ai).ptr_ptr); \
+        (ai).ptr_ptr = &((ai).ptr); \
+    }                               \
+    else                            \
+    {                               \
+        (ai).ptr = NULL;            \
+    }
+
+#define OPENRASP_AI_SET_PTR(t, val)       \
+    do                                    \
+    {                                     \
+        temp_variable *__t = (t);         \
+        __t->var.ptr = (val);             \
+        __t->var.ptr_ptr = &__t->var.ptr; \
+    } while (0)
+
+#define OPENRASP_FREE_OP(should_free)                                   \
+    if (should_free.var)                                                \
+    {                                                                   \
+        if ((zend_uintptr_t)should_free.var & 1L)                       \
+        {                                                               \
+            zval_dtor((zval *)((zend_uintptr_t)should_free.var & ~1L)); \
+        }                                                               \
+        else                                                            \
+        {                                                               \
+            zval_ptr_dtor(&should_free.var);                            \
+        }                                                               \
+    }
+#define OPENRASP_FREE_OP_VAR_PTR(should_free) \
+    if (should_free.var)                      \
+    {                                         \
+        zval_ptr_dtor(&should_free.var);      \
+    }
+
 #define OPENRASP_TAINT_MARK(zv, ptr)                                                                                            \
     do                                                                                                                          \
     {                                                                                                                           \
@@ -76,8 +124,8 @@ using taint::NodeSequence;
         OPENRASP_G(sequenceManager).registerSequence(ptr);                                                                      \
     } while (0)
 
-#define OPENRASP_TAINT_POSSIBLE(zv) (*((unsigned *)(Z_STRVAL_P(zv) + Z_STRLEN_P(zv) + OPENRASP_TAINT_POINTER_LENGTH + 1)) == OPENRASP_TAINT_MAGIC_POSSIBLE)
-#define OPENRASP_TAINT_SEQUENCE(zv) (OPENRASP_TAINT_POSSIBLE(zv) ? **((NodeSequence **)(Z_STRVAL_P(zv) + Z_STRLEN_P(zv) + 1)) : NodeSequence(Z_STRLEN_P(zv)))
+#define OPENRASP_TAINT_POSSIBLE(zv) (Z_TYPE_P(zv) == IS_STRING && *((unsigned *)(Z_STRVAL_P(zv) + Z_STRLEN_P(zv) + OPENRASP_TAINT_POINTER_LENGTH + 1)) == OPENRASP_TAINT_MAGIC_POSSIBLE)
+#define OPENRASP_TAINT_SEQUENCE(zv) (OPENRASP_TAINT_POSSIBLE(zv) ? **((NodeSequence **)(Z_STRVAL_P(zv) + Z_STRLEN_P(zv) + 1)) : NodeSequence(Z_TYPE_P(zv) == IS_STRING ? Z_STRLEN_P(zv) : 0))
 
 typedef struct _openrasp_free_op
 {
@@ -88,3 +136,4 @@ typedef struct _openrasp_free_op
 
 void openrasp_taint_mark_strings(zval *symbol_table, std::string varsSource TSRMLS_DC);
 int openrasp_concat_handler(ZEND_OPCODE_HANDLER_ARGS);
+int openrasp_assign_concat_handler(ZEND_OPCODE_HANDLER_ARGS);

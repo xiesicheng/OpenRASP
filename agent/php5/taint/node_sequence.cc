@@ -80,18 +80,9 @@ NodeSequence &NodeSequence::insert(size_t pos, const NodeSequence &inns)
     return *this;
 }
 
-NodeSequence &NodeSequence::insert(size_t pos, size_t lengthUntainted)
+NodeSequence &NodeSequence::append(const NodeSequence &inns)
 {
-    cut(pos);
-    for (auto it = sequence.begin(); it != sequence.end(); it++)
-    {
-        if (it->getStartIndex() >= pos)
-        {
-            it->shift(lengthUntainted);
-        }
-    }
-    stringLength += lengthUntainted;
-    return *this;
+    return insert(length(), inns);
 }
 
 NodeSequence &NodeSequence::erase(size_t pos, size_t len)
