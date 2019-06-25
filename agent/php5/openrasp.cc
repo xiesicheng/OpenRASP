@@ -198,6 +198,7 @@ PHP_MINIT_FUNCTION(openrasp)
         zend_set_user_opcode_handler(ZEND_ASSIGN, openrasp_assign_handler);
         zend_set_user_opcode_handler(ZEND_ADD_VAR, openrasp_add_var_handler);
         zend_set_user_opcode_handler(ZEND_ADD_CHAR, openrasp_add_char_handler);
+        zend_set_user_opcode_handler(ZEND_ADD_STRING, openrasp_add_string_handler);
         zend_set_user_opcode_handler(ZEND_ASSIGN_CONCAT, openrasp_assign_concat_handler);
     }
 

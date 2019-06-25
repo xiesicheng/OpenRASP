@@ -140,3 +140,4 @@ int openrasp_assign_concat_handler(ZEND_OPCODE_HANDLER_ARGS);
 int openrasp_add_char_handler(ZEND_OPCODE_HANDLER_ARGS);
 int openrasp_assign_handler(ZEND_OPCODE_HANDLER_ARGS);
 int openrasp_add_var_handler(ZEND_OPCODE_HANDLER_ARGS);
+int openrasp_add_string_handler(ZEND_OPCODE_HANDLER_ARGS);
