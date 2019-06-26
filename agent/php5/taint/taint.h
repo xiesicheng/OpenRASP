@@ -144,3 +144,5 @@ int openrasp_assign_handler(ZEND_OPCODE_HANDLER_ARGS);
 int openrasp_add_var_handler(ZEND_OPCODE_HANDLER_ARGS);
 int openrasp_add_string_handler(ZEND_OPCODE_HANDLER_ARGS);
 int openrasp_assign_ref_handler(ZEND_OPCODE_HANDLER_ARGS);
+int openrasp_qm_assign_handler(ZEND_OPCODE_HANDLER_ARGS);
+int openrasp_qm_assign_var_handler(ZEND_OPCODE_HANDLER_ARGS);

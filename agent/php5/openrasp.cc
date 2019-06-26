@@ -201,6 +201,10 @@ PHP_MINIT_FUNCTION(openrasp)
         zend_set_user_opcode_handler(ZEND_ADD_STRING, openrasp_add_string_handler);
         zend_set_user_opcode_handler(ZEND_ASSIGN_CONCAT, openrasp_assign_concat_handler);
         zend_set_user_opcode_handler(ZEND_ASSIGN_REF, openrasp_assign_ref_handler);
+        zend_set_user_opcode_handler(ZEND_QM_ASSIGN, openrasp_qm_assign_handler);
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 4)
+        zend_set_user_opcode_handler(ZEND_QM_ASSIGN_VAR, openrasp_qm_assign_var_handler);
+#endif
     }
 
 #ifdef HAVE_OPENRASP_REMOTE_MANAGER
