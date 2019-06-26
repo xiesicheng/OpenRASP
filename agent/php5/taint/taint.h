@@ -23,6 +23,8 @@ using taint::NodeSequence;
     } while (0)
 #endif
 
+#define ZEND_VM_CONTINUE() return 0
+
 #if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION < 4)
 #define OPENRASP_OP1_TYPE(n) ((n)->op1.op_type)
 #define OPENRASP_OP2_TYPE(n) ((n)->op2.op_type)
@@ -141,3 +143,4 @@ int openrasp_add_char_handler(ZEND_OPCODE_HANDLER_ARGS);
 int openrasp_assign_handler(ZEND_OPCODE_HANDLER_ARGS);
 int openrasp_add_var_handler(ZEND_OPCODE_HANDLER_ARGS);
 int openrasp_add_string_handler(ZEND_OPCODE_HANDLER_ARGS);
+int openrasp_assign_ref_handler(ZEND_OPCODE_HANDLER_ARGS);
