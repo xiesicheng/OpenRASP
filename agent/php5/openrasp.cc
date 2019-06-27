@@ -78,20 +78,27 @@ ZEND_ARG_INFO(0, input)
 ZEND_ARG_INFO(0, mode)
 ZEND_END_ARG_INFO()
 
-static const zend_function_entry openrasp_functions[] = {
-    PHP_FE(openrasp_ob_handler, arginfo_openrasp_ob_handler)
-#if PHP_MAJOR_VERSION == 5 && PHP_MINOR_VERSION == 3 && PHP_RELEASE_VERSION < 7
-        {NULL, NULL, NULL}
-#else
-        PHP_FE_END
-#endif
-};
-
 static PHP_FUNCTION(openrasp_ob_handler)
 {
     openrasp_detect_output(INTERNAL_FUNCTION_PARAM_PASSTHRU);
 }
 #endif
+
+ZEND_BEGIN_ARG_INFO_EX(taint_dump_arginfo, 0, 0, 1)
+ZEND_ARG_INFO(0, string)
+ZEND_END_ARG_INFO()
+
+static const zend_function_entry openrasp_functions[] = {
+    PHP_FE(taint_dump, taint_dump_arginfo)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION <= 3)
+        PHP_FE(openrasp_ob_handler, arginfo_openrasp_ob_handler)
+#endif
+#if PHP_MAJOR_VERSION == 5 && PHP_MINOR_VERSION == 3 && PHP_RELEASE_VERSION < 7
+            {NULL, NULL, NULL}
+#else
+        PHP_FE_END
+#endif
+};
 
 PHP_GINIT_FUNCTION(openrasp)
 {
@@ -363,11 +370,7 @@ zend_module_entry openrasp_module_entry = {
     STANDARD_MODULE_HEADER,
 #endif
     "openrasp",
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION <= 3)
     openrasp_functions,
-#else
-    NULL,
-#endif
     PHP_MINIT(openrasp),
     PHP_MSHUTDOWN(openrasp),
     PHP_RINIT(openrasp),

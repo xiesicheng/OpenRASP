@@ -12,8 +12,6 @@ private:
   void shift(size_t offset);
   void cut(size_t pos);
 
-  std::list<TaintNode> getSequence() const;
-
 public:
   static const size_t npos = static_cast<size_t>(-1);
 
@@ -23,6 +21,7 @@ public:
 
   size_t taintedSize() const;
   size_t length() const;
+  std::list<TaintNode> getSequence() const;
 
   NodeSequence &insert(size_t pos, const NodeSequence &inns);
   NodeSequence &insert(size_t pos, size_t lengthUntainted);

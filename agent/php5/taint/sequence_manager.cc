@@ -11,7 +11,6 @@ SequenceManager::~SequenceManager()
 
 void SequenceManager::registerSequence(NodeSequence *nodeSequence)
 {
-  printf("%s", nodeSequence->dump().c_str());
   sequences.push_back(nodeSequence);
 }
 

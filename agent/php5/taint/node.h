@@ -23,6 +23,7 @@ public:
   size_t getStartIndex() const;
   size_t getEndIndex() const;
   void shift(size_t offset);
+  std::string getSource() const;
   std::string dump() const;
 };
 } // namespace taint

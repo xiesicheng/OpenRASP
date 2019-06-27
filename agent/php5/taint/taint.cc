@@ -8,6 +8,8 @@ extern "C"
 #include "ext/standard/info.h"
 }
 
+using taint::TaintNode;
+
 static void openrasp_pzval_unlock_func(zval *z, openrasp_free_op *should_free, int unref);
 static void openrasp_pzval_unlock_free_func(zval *z);
 static void openrasp_pzval_lock_func(zval *z, openrasp_free_op *should_free);
@@ -2486,7 +2488,7 @@ int openrasp_send_var_handler(ZEND_OPCODE_HANDLER_ARGS)
     {
         return ZEND_USER_OPCODE_DISPATCH;
     }
-    
+
     MAKE_STD_ZVAL(varptr);
     *varptr = **op1;
     Z_SET_REFCOUNT_P(varptr, 0);
@@ -2582,4 +2584,38 @@ int openrasp_send_ref_handler(ZEND_OPCODE_HANDLER_ARGS)
 
     execute_data->opline++;
     return ZEND_USER_OPCODE_CONTINUE;
+}
+
+PHP_FUNCTION(taint_dump)
+{
+    zval *arg;
+    if (!openrasp_ini.taint_enable)
+    {
+        RETURN_FALSE;
+    }
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z", &arg) == FAILURE)
+    {
+        return;
+    }
+
+    if (IS_STRING == Z_TYPE_P(arg) && OPENRASP_TAINT_POSSIBLE(arg))
+    {
+        array_init(return_value);
+        NodeSequence ns = OPENRASP_TAINT_SEQUENCE(arg);
+        std::list<TaintNode> taintNodes = ns.getSequence();
+        for (TaintNode &tn : taintNodes)
+        {
+            zval *z_tainted_node = nullptr;
+            MAKE_STD_ZVAL(z_tainted_node);
+            array_init(z_tainted_node);
+            add_assoc_string(z_tainted_node, "source", (char *)tn.getSource().c_str(), 1);
+            add_assoc_long(z_tainted_node, "startIndex", tn.getStartIndex());
+            add_assoc_long(z_tainted_node, "endIndex", tn.getEndIndex());
+            add_next_index_zval(return_value, z_tainted_node);
+        }
+        return;
+    }
+
+    RETURN_FALSE;
 }

@@ -37,11 +37,16 @@ size_t TaintNode::getEndIndex() const
     return endIndex;
 }
 
+std::string TaintNode::getSource() const
+{
+    return varsSource + "['" + keyName + "']";
+}
+
 std::string TaintNode::dump() const
 {
     std::stringstream ss;
     ss << "( " << startIndex << " - " << endIndex << " )";
-    ss << " source: " << varsSource << "['" << keyName << "']";
+    ss << " source: " << getSource();
     return ss.str();
 }
 
