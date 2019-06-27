@@ -320,7 +320,141 @@ static zval *openrasp_get_zval_ptr(int op_type, const znode_op *node, const zend
     return NULL;
 }
 
+//php5.6
+#elif (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 6)
+
+static zval *openrasp_get_zval_ptr_var(zend_uint var, const zend_execute_data *execute_data, openrasp_free_op *should_free TSRMLS_DC)
+{
+    zval *ptr = OPENRASP_T(var).var.ptr;
+    return should_free->var = ptr;
+}
+
+static zval *openrasp_get_zval_ptr_cv(zend_uint var, int type TSRMLS_DC)
+{
+    zval ***ptr = EX_CV_NUM(EG(current_execute_data), var);
+
+    if (UNEXPECTED(*ptr == NULL))
+    {
+        zend_compiled_variable *cv = &OPENRASP_CV_DEF_OF(var);
+        if (!EG(active_symbol_table) || zend_hash_quick_find(EG(active_symbol_table), cv->name, cv->name_len + 1, cv->hash_value, (void **)ptr) == FAILURE)
+        {
+            zend_error(E_NOTICE, "Undefined variable: %s", cv->name);
+            return &EG(uninitialized_zval);
+        }
+    }
+    return **ptr;
+}
+
+static zval *openrasp_get_zval_ptr_tmp(zend_uint var, const zend_execute_data *execute_data, openrasp_free_op *should_free TSRMLS_DC)
+{
+    return should_free->var = &OPENRASP_T(var).tmp_var;
+}
+
+static zval **openrasp_get_zval_ptr_ptr_var(zend_uint var, const zend_execute_data *execute_data, openrasp_free_op *should_free TSRMLS_DC)
+{
+    zval **ptr_ptr = OPENRASP_T(var).var.ptr_ptr;
+
+    if (EXPECTED(ptr_ptr != NULL))
+    {
+        OPENRASP_PZVAL_UNLOCK(*ptr_ptr, should_free);
+    }
+    else
+    {
+        /* string offset */
+        OPENRASP_PZVAL_UNLOCK(OPENRASP_T(var).str_offset.str, should_free);
+    }
+    return ptr_ptr;
+}
+
+static zval **openrasp_get_zval_ptr_ptr_cv(zend_uint var, int type TSRMLS_DC)
+{
+    zval ***ptr = &OPENRASP_CV_OF(var);
+
+    if (UNEXPECTED(*ptr == NULL))
+    {
+        zend_compiled_variable *cv = &OPENRASP_CV_DEF_OF(var);
+        if (!EG(active_symbol_table) || zend_hash_quick_find(EG(active_symbol_table), cv->name, cv->name_len + 1, cv->hash_value, (void **)ptr) == FAILURE)
+        {
+            switch (type)
+            {
+            case BP_VAR_R:
+            case BP_VAR_UNSET:
+                zend_error(E_NOTICE, "Undefined variable: %s", cv->name);
+                /* break missing intentionally */
+            case BP_VAR_IS:
+                return &EG(uninitialized_zval_ptr);
+                break;
+            case BP_VAR_RW:
+                zend_error(E_NOTICE, "Undefined variable: %s", cv->name);
+                /* break missing intentionally */
+            case BP_VAR_W:
+                Z_ADDREF(EG(uninitialized_zval));
+                if (!EG(active_symbol_table))
+                {
+                    *ptr = (zval **)EX_CV_NUM(EG(current_execute_data), EG(active_op_array)->last_var + var);
+                    **ptr = &EG(uninitialized_zval);
+                }
+                else
+                {
+                    zend_hash_quick_update(EG(active_symbol_table), cv->name, cv->name_len + 1, cv->hash_value, &EG(uninitialized_zval_ptr), sizeof(zval *), (void **)ptr);
+                }
+                break;
+            }
+        }
+    }
+    return *ptr;
+}
+
+static zval **openrasp_get_zval_ptr_ptr(int op_type, const znode_op *node, const zend_execute_data *execute_data, openrasp_free_op *should_free, int type TSRMLS_DC)
+{
+    should_free->type = op_type;
+    if (op_type == IS_CV)
+    {
+        should_free->var = 0;
+        return openrasp_get_zval_ptr_ptr_cv(node->var, type TSRMLS_CC);
+    }
+    else if (op_type == IS_VAR)
+    {
+        return openrasp_get_zval_ptr_ptr_var(node->var, execute_data, should_free TSRMLS_CC);
+    }
+    else
+    {
+        should_free->var = 0;
+        return NULL;
+    }
+}
+
+static zval *openrasp_get_zval_ptr(int op_type, const znode_op *node, const zend_execute_data *execute_data, openrasp_free_op *should_free, int type TSRMLS_DC)
+{
+    /*	should_free->is_var = 0; */
+    switch (op_type)
+    {
+    case IS_CONST:
+        should_free->var = 0;
+        return node->zv;
+        break;
+    case IS_TMP_VAR:
+        should_free->var = OPENRASP_TMP_FREE(&OPENRASP_T(node->var).tmp_var);
+        return &OPENRASP_T(node->var).tmp_var;
+        break;
+    case IS_VAR:
+        return openrasp_get_zval_ptr_var(node->var, execute_data, should_free TSRMLS_CC);
+        break;
+    case IS_UNUSED:
+        should_free->var = 0;
+        return NULL;
+        break;
+    case IS_CV:
+        should_free->var = 0;
+        return openrasp_get_zval_ptr_cv(node->var, type TSRMLS_CC);
+        break;
+        EMPTY_SWITCH_DEFAULT_CASE()
+    }
+    return NULL;
+}
+
 #else
+
 static zval *openrasp_get_zval_ptr_var(zend_uint var, const temp_variable *Ts, openrasp_free_op *should_free TSRMLS_DC)
 {
     zval *ptr = OPENRASP_TS(var).var.ptr;
@@ -465,7 +599,7 @@ int openrasp_concat_handler(ZEND_OPCODE_HANDLER_ARGS)
     switch (OPENRASP_OP1_TYPE(opline))
     {
     case IS_TMP_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
         op1 = openrasp_get_zval_ptr_tmp(OPENRASP_OP1_NODE_PTR(opline), execute_data, &free_op1 TSRMLS_CC);
 #else
         op1 = openrasp_get_zval_ptr_tmp(OPENRASP_OP1_NODE_PTR(opline), execute_data->Ts, &free_op1 TSRMLS_CC);
@@ -473,7 +607,7 @@ int openrasp_concat_handler(ZEND_OPCODE_HANDLER_ARGS)
         break;
 
     case IS_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
         op1 = openrasp_get_zval_ptr_var(OPENRASP_OP1_NODE_PTR(opline), execute_data, &free_op1 TSRMLS_CC);
 #else
         op1 = openrasp_get_zval_ptr_var(OPENRASP_OP1_NODE_PTR(opline), execute_data->Ts, &free_op1 TSRMLS_CC);
@@ -492,7 +626,7 @@ int openrasp_concat_handler(ZEND_OPCODE_HANDLER_ARGS)
     switch (OPENRASP_OP2_TYPE(opline))
     {
     case IS_TMP_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
         op2 = openrasp_get_zval_ptr_tmp(OPENRASP_OP2_NODE_PTR(opline), execute_data, &free_op2 TSRMLS_CC);
 #else
         op2 = openrasp_get_zval_ptr_tmp(OPENRASP_OP2_NODE_PTR(opline), execute_data->Ts, &free_op2 TSRMLS_CC);
@@ -500,7 +634,7 @@ int openrasp_concat_handler(ZEND_OPCODE_HANDLER_ARGS)
         break;
 
     case IS_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
         op2 = openrasp_get_zval_ptr_var(OPENRASP_OP2_NODE_PTR(opline), execute_data, &free_op2 TSRMLS_CC);
 #else
         op2 = openrasp_get_zval_ptr_var(OPENRASP_OP2_NODE_PTR(opline), execute_data->Ts, &free_op2 TSRMLS_CC);
@@ -604,7 +738,7 @@ static int openrasp_binary_assign_op_obj_helper(int (*binary_op)(zval *result, z
 
 #if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION < 4)
     zval *value = openrasp_get_zval_ptr(&op_data->op1, execute_data->Ts, &free_op_data1, BP_VAR_R TSRMLS_CC);
-#elif (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#elif (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
     zval *value = openrasp_get_zval_ptr((opline + 1)->op1_type, &(opline + 1)->op1, execute_data, &free_op_data1, BP_VAR_R TSRMLS_CC);
 #else
     zval *value = openrasp_get_zval_ptr((opline + 1)->op1_type, &(opline + 1)->op1, execute_data->Ts, &free_op_data1, BP_VAR_R TSRMLS_CC);
@@ -614,7 +748,7 @@ static int openrasp_binary_assign_op_obj_helper(int (*binary_op)(zval *result, z
     switch (OPENRASP_OP1_TYPE(opline))
     {
     case IS_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
         object_ptr = openrasp_get_zval_ptr_ptr_var(OPENRASP_OP1_NODE_PTR(opline), execute_data, &free_op1 TSRMLS_CC);
 #else
         object_ptr = openrasp_get_zval_ptr_ptr_var(OPENRASP_OP1_NODE_PTR(opline), execute_data->Ts, &free_op1 TSRMLS_CC);
@@ -643,14 +777,14 @@ static int openrasp_binary_assign_op_obj_helper(int (*binary_op)(zval *result, z
     switch (OPENRASP_OP2_TYPE(opline))
     {
     case IS_TMP_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
         property = openrasp_get_zval_ptr_tmp(OPENRASP_OP2_NODE_PTR(opline), execute_data, &free_op2 TSRMLS_CC);
 #else
         property = openrasp_get_zval_ptr_tmp(OPENRASP_OP2_NODE_PTR(opline), execute_data->Ts, &free_op2 TSRMLS_CC);
 #endif
         break;
     case IS_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
         property = openrasp_get_zval_ptr_var(OPENRASP_OP2_NODE_PTR(opline), execute_data, &free_op2 TSRMLS_CC);
 #else
         property = openrasp_get_zval_ptr_var(OPENRASP_OP2_NODE_PTR(opline), execute_data->Ts, &free_op2 TSRMLS_CC);
@@ -716,7 +850,7 @@ static int openrasp_binary_assign_op_obj_helper(int (*binary_op)(zval *result, z
         {
 #if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION < 4)
             zval **zptr = Z_OBJ_HT_P(object)->get_property_ptr_ptr(object, property TSRMLS_CC);
-#elif (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#elif (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
             zval **zptr = Z_OBJ_HT_P(object)->get_property_ptr_ptr(object, property, BP_VAR_RW, ((OPENRASP_OP2_TYPE(opline) == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
 #else
             zval **zptr = Z_OBJ_HT_P(object)->get_property_ptr_ptr(object, property, ((IS_CONST == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
@@ -883,7 +1017,7 @@ static int openrasp_binary_assign_op_helper(int (*binary_op)(zval *result, zval 
         switch (OPENRASP_OP1_TYPE(opline))
         {
         case IS_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
             object_ptr = openrasp_get_zval_ptr_ptr_var(OPENRASP_OP1_NODE_PTR(opline), execute_data, &free_op1 TSRMLS_CC);
 #else
             object_ptr = openrasp_get_zval_ptr_ptr_var(OPENRASP_OP1_NODE_PTR(opline), execute_data->Ts, &free_op1 TSRMLS_CC);
@@ -925,14 +1059,14 @@ static int openrasp_binary_assign_op_helper(int (*binary_op)(zval *result, zval 
             switch (OPENRASP_OP2_TYPE(opline))
             {
             case IS_TMP_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
                 dim = openrasp_get_zval_ptr_tmp(OPENRASP_OP2_NODE_PTR(opline), execute_data, &free_op2 TSRMLS_CC);
 #else
                 dim = openrasp_get_zval_ptr_tmp(OPENRASP_OP2_NODE_PTR(opline), execute_data->Ts, &free_op2 TSRMLS_CC);
 #endif
                 break;
             case IS_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
                 dim = openrasp_get_zval_ptr_var(OPENRASP_OP2_NODE_PTR(opline), execute_data, &free_op2 TSRMLS_CC);
 #else
                 dim = openrasp_get_zval_ptr_var(OPENRASP_OP2_NODE_PTR(opline), execute_data->Ts, &free_op2 TSRMLS_CC);
@@ -964,7 +1098,7 @@ static int openrasp_binary_assign_op_helper(int (*binary_op)(zval *result, zval 
             value = openrasp_get_zval_ptr(&op_data->op1, execute_data->Ts, &free_op_data1, BP_VAR_R TSRMLS_CC);
             var_ptr = openrasp_get_zval_ptr_ptr(&op_data->op2, execute_data->Ts, &free_op_data2, BP_VAR_RW TSRMLS_CC);
 #else
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
             openrasp_fetch_dimension_address(&OPENRASP_T((opline + 1)->op2.var), object_ptr, dim, IS_TMP_VAR, BP_VAR_RW TSRMLS_CC);
             value = openrasp_get_zval_ptr((opline + 1)->op1_type, &(opline + 1)->op1, execute_data, &free_op_data1, BP_VAR_R TSRMLS_CC);
             var_ptr = openrasp_get_zval_ptr_ptr_var((opline + 1)->op2.var, execute_data, &free_op_data2 TSRMLS_CC);
@@ -982,14 +1116,14 @@ static int openrasp_binary_assign_op_helper(int (*binary_op)(zval *result, zval 
         switch (OPENRASP_OP2_TYPE(opline))
         {
         case IS_TMP_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
             value = openrasp_get_zval_ptr_tmp(OPENRASP_OP2_NODE_PTR(opline), execute_data, &free_op2 TSRMLS_CC);
 #else
             value = openrasp_get_zval_ptr_tmp(OPENRASP_OP2_NODE_PTR(opline), execute_data->Ts, &free_op2 TSRMLS_CC);
 #endif
             break;
         case IS_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
             value = openrasp_get_zval_ptr_var(OPENRASP_OP2_NODE_PTR(opline), execute_data, &free_op2 TSRMLS_CC);
 #else
             value = openrasp_get_zval_ptr_var(OPENRASP_OP2_NODE_PTR(opline), execute_data->Ts, &free_op2 TSRMLS_CC);
@@ -1012,7 +1146,7 @@ static int openrasp_binary_assign_op_helper(int (*binary_op)(zval *result, zval 
         switch (OPENRASP_OP1_TYPE(opline))
         {
         case IS_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
             var_ptr = openrasp_get_zval_ptr_ptr_var(OPENRASP_OP1_NODE_PTR(opline), execute_data, &free_op1 TSRMLS_CC);
 #else
             var_ptr = openrasp_get_zval_ptr_ptr_var(OPENRASP_OP1_NODE_PTR(opline), execute_data->Ts, &free_op1 TSRMLS_CC);
@@ -1630,14 +1764,14 @@ int openrasp_add_char_handler(ZEND_OPCODE_HANDLER_ARGS)
         switch (OPENRASP_OP1_TYPE(opline))
         {
         case IS_TMP_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
             op1 = openrasp_get_zval_ptr_tmp(OPENRASP_OP1_NODE_PTR(opline), execute_data, &free_op1 TSRMLS_CC);
 #else
         op1 = openrasp_get_zval_ptr_tmp(OPENRASP_OP1_NODE_PTR(opline), execute_data->Ts, &free_op1 TSRMLS_CC);
 #endif
             break;
         case IS_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
             op1 = openrasp_get_zval_ptr_var(OPENRASP_OP1_NODE_PTR(opline), execute_data, &free_op1 TSRMLS_CC);
 #else
         op1 = openrasp_get_zval_ptr_var(OPENRASP_OP1_NODE_PTR(opline), execute_data->Ts, &free_op1 TSRMLS_CC);
@@ -1683,25 +1817,26 @@ int openrasp_add_char_handler(ZEND_OPCODE_HANDLER_ARGS)
 int openrasp_assign_handler(ZEND_OPCODE_HANDLER_ARGS)
 {
     zend_op *opline = execute_data->opline;
-    zval **op1 = NULL, **op2 = NULL;
+    zval **op1 = NULL;
+    zval *op2 = NULL;
     switch (OPENRASP_OP2_TYPE(opline))
     {
     case IS_VAR:
-        op2 = OPENRASP_T(OPENRASP_OP2_VAR(opline)).var.ptr_ptr;
+        op2 = OPENRASP_T(OPENRASP_OP2_VAR(opline)).var.ptr;
         break;
     case IS_CV:
     {
         zval **t = OPENRASP_CV_OF(OPENRASP_OP2_VAR(opline));
         if (t && *t)
         {
-            op2 = t;
+            op2 = *t;
         }
         else if (EG(active_symbol_table))
         {
             zend_compiled_variable *cv = &OPENRASP_CV_DEF_OF(OPENRASP_OP2_VAR(opline));
             if (zend_hash_quick_find(EG(active_symbol_table), cv->name, cv->name_len + 1, cv->hash_value, (void **)&t) == SUCCESS)
             {
-                op2 = t;
+                op2 = *t;
             }
         }
     }
@@ -1711,7 +1846,11 @@ int openrasp_assign_handler(ZEND_OPCODE_HANDLER_ARGS)
         break;
     }
 
-    if (!op2 || *op2 == &EG(error_zval) || Z_TYPE_PP(op2) != IS_STRING || !Z_STRLEN_PP(op2) || !OPENRASP_TAINT_POSSIBLE(*op2))
+    if (!op2 ||
+        op2 == &EG(error_zval) ||
+        Z_TYPE_P(op2) != IS_STRING ||
+        !Z_STRLEN_P(op2) ||
+        !OPENRASP_TAINT_POSSIBLE(op2))
     {
         return ZEND_USER_OPCODE_DISPATCH;
     }
@@ -1745,22 +1884,22 @@ int openrasp_assign_handler(ZEND_OPCODE_HANDLER_ARGS)
         zval garbage = **op1;
         zend_uint refcount = Z_REFCOUNT_PP(op1);
 
-        **op1 = **op2;
+        **op1 = *op2;
         Z_SET_REFCOUNT_P(*op1, refcount);
         Z_SET_ISREF_PP(op1);
         zval_copy_ctor(*op1);
         zval_dtor(&garbage);
         Z_STRVAL_PP(op1) = (char *)erealloc(Z_STRVAL_PP(op1), Z_STRLEN_PP(op1) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
-        OPENRASP_TAINT_MARK(*op1, new NodeSequence(OPENRASP_TAINT_SEQUENCE(*op2)));
+        OPENRASP_TAINT_MARK(*op1, new NodeSequence(OPENRASP_TAINT_SEQUENCE(op2)));
 
         execute_data->opline++;
         return ZEND_USER_OPCODE_CONTINUE;
     }
-    else if (PZVAL_IS_REF(*op2) && Z_REFCOUNT_PP(op2) > 1)
+    else if (PZVAL_IS_REF(op2) && Z_REFCOUNT_P(op2) > 1)
     {
-        SEPARATE_ZVAL(op2);
-        Z_STRVAL_PP(op2) = (char *)erealloc(Z_STRVAL_PP(op2), Z_STRLEN_PP(op2) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
-        OPENRASP_TAINT_MARK(*op2, new NodeSequence(OPENRASP_TAINT_SEQUENCE(*op2)));
+        SEPARATE_ZVAL(&op2);
+        Z_STRVAL_P(op2) = (char *)erealloc(Z_STRVAL_P(op2), Z_STRLEN_P(op2) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
+        OPENRASP_TAINT_MARK(op2, new NodeSequence(OPENRASP_TAINT_SEQUENCE(op2)));
     }
 
     return ZEND_USER_OPCODE_DISPATCH;
@@ -1792,14 +1931,14 @@ int openrasp_add_var_handler(ZEND_OPCODE_HANDLER_ARGS)
         switch (OPENRASP_OP1_TYPE(opline))
         {
         case IS_TMP_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
             op1 = openrasp_get_zval_ptr_tmp(OPENRASP_OP1_NODE_PTR(opline), execute_data, &free_op1 TSRMLS_CC);
 #else
         op1 = openrasp_get_zval_ptr_tmp(OPENRASP_OP1_NODE_PTR(opline), execute_data->Ts, &free_op1 TSRMLS_CC);
 #endif
             break;
         case IS_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
             op1 = openrasp_get_zval_ptr_var(OPENRASP_OP1_NODE_PTR(opline), execute_data, &free_op1 TSRMLS_CC);
 #else
         op1 = openrasp_get_zval_ptr_var(OPENRASP_OP1_NODE_PTR(opline), execute_data->Ts, &free_op1 TSRMLS_CC);
@@ -1820,14 +1959,14 @@ int openrasp_add_var_handler(ZEND_OPCODE_HANDLER_ARGS)
     switch (OPENRASP_OP2_TYPE(opline))
     {
     case IS_TMP_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
         op2 = openrasp_get_zval_ptr_tmp(OPENRASP_OP2_NODE_PTR(opline), execute_data, &free_op2 TSRMLS_CC);
 #else
         op2 = openrasp_get_zval_ptr_tmp(OPENRASP_OP2_NODE_PTR(opline), execute_data->Ts, &free_op2 TSRMLS_CC);
 #endif
         break;
     case IS_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
         op2 = openrasp_get_zval_ptr_var(OPENRASP_OP2_NODE_PTR(opline), execute_data, &free_op2 TSRMLS_CC);
 #else
         op2 = openrasp_get_zval_ptr_var(OPENRASP_OP2_NODE_PTR(opline), execute_data->Ts, &free_op2 TSRMLS_CC);
@@ -1930,14 +2069,14 @@ int openrasp_add_string_handler(ZEND_OPCODE_HANDLER_ARGS)
         switch (OPENRASP_OP1_TYPE(opline))
         {
         case IS_TMP_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
             op1 = openrasp_get_zval_ptr_tmp(OPENRASP_OP1_NODE_PTR(opline), execute_data, &free_op1 TSRMLS_CC);
 #else
         op1 = openrasp_get_zval_ptr_tmp(OPENRASP_OP1_NODE_PTR(opline), execute_data->Ts, &free_op1 TSRMLS_CC);
 #endif
             break;
         case IS_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
             op1 = openrasp_get_zval_ptr_var(OPENRASP_OP1_NODE_PTR(opline), execute_data, &free_op1 TSRMLS_CC);
 #else
         op1 = openrasp_get_zval_ptr_var(OPENRASP_OP1_NODE_PTR(opline), execute_data->Ts, &free_op1 TSRMLS_CC);
@@ -1996,7 +2135,7 @@ int openrasp_assign_ref_handler(ZEND_OPCODE_HANDLER_ARGS)
     {
     case IS_VAR:
         value_type = IS_VAR;
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
         value_ptr_ptr = openrasp_get_zval_ptr_ptr_var(OPENRASP_OP2_NODE_PTR(opline), execute_data, &free_op2 TSRMLS_CC);
 #else
         value_ptr_ptr = openrasp_get_zval_ptr_ptr_var(OPENRASP_OP2_NODE_PTR(opline), execute_data->Ts, &free_op2 TSRMLS_CC);
@@ -2052,7 +2191,7 @@ int openrasp_assign_ref_handler(ZEND_OPCODE_HANDLER_ARGS)
     {
     case IS_VAR:
         variable_type = IS_VAR;
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
         variable_ptr_ptr = openrasp_get_zval_ptr_ptr_var(OPENRASP_OP1_NODE_PTR(opline), execute_data, &free_op1 TSRMLS_CC);
 #else
         variable_ptr_ptr = openrasp_get_zval_ptr_ptr_var(OPENRASP_OP1_NODE_PTR(opline), execute_data->Ts, &free_op1 TSRMLS_CC);
@@ -2172,14 +2311,14 @@ int openrasp_qm_assign_handler(ZEND_OPCODE_HANDLER_ARGS)
     switch (OPENRASP_OP1_TYPE(opline))
     {
     case IS_TMP_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
         op1 = openrasp_get_zval_ptr_tmp(OPENRASP_OP1_NODE_PTR(opline), execute_data, &free_op1 TSRMLS_CC);
 #else
         op1 = openrasp_get_zval_ptr_tmp(OPENRASP_OP1_NODE_PTR(opline), execute_data->Ts, &free_op1 TSRMLS_CC);
 #endif
         break;
     case IS_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
         op1 = openrasp_get_zval_ptr_var(OPENRASP_OP1_NODE_PTR(opline), execute_data, &free_op1 TSRMLS_CC);
 #else
         op1 = openrasp_get_zval_ptr_var(OPENRASP_OP1_NODE_PTR(opline), execute_data->Ts, &free_op1 TSRMLS_CC);
@@ -2232,14 +2371,14 @@ int openrasp_qm_assign_var_handler(ZEND_OPCODE_HANDLER_ARGS)
     switch (OPENRASP_OP1_TYPE(opline))
     {
     case IS_TMP_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
         op1 = openrasp_get_zval_ptr_tmp(OPENRASP_OP1_NODE_PTR(opline), execute_data, &free_op1 TSRMLS_CC);
 #else
         op1 = openrasp_get_zval_ptr_tmp(OPENRASP_OP1_NODE_PTR(opline), execute_data->Ts, &free_op1 TSRMLS_CC);
 #endif
         break;
     case IS_VAR:
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
         op1 = openrasp_get_zval_ptr_var(OPENRASP_OP1_NODE_PTR(opline), execute_data, &free_op1 TSRMLS_CC);
 #else
         op1 = openrasp_get_zval_ptr_var(OPENRASP_OP1_NODE_PTR(opline), execute_data->Ts, &free_op1 TSRMLS_CC);
@@ -2301,7 +2440,7 @@ int openrasp_send_var_handler(ZEND_OPCODE_HANDLER_ARGS)
     zval **op1 = NULL;
     openrasp_free_op free_op1 = {0};
     zval *varptr;
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
     if ((opline->extended_value == ZEND_DO_FCALL_BY_NAME) && ARG_SHOULD_BE_SENT_BY_REF(execute_data->call->fbc, OPENRASP_OP_LINENUM(opline->op2)))
     {
         return openrasp_send_ref_handler(ZEND_OPCODE_HANDLER_ARGS_PASSTHRU);
@@ -2347,7 +2486,7 @@ int openrasp_send_var_handler(ZEND_OPCODE_HANDLER_ARGS)
     {
         return ZEND_USER_OPCODE_DISPATCH;
     }
-printf("1\n");
+    
     MAKE_STD_ZVAL(varptr);
     *varptr = **op1;
     Z_SET_REFCOUNT_P(varptr, 0);
@@ -2377,7 +2516,7 @@ int openrasp_send_ref_handler(ZEND_OPCODE_HANDLER_ARGS)
     zend_op *opline = execute_data->opline;
     zval **op1 = NULL;
     openrasp_free_op free_op1 = {0};
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
     if (execute_data->function_state.function->type == ZEND_INTERNAL_FUNCTION && !ARG_SHOULD_BE_SENT_BY_REF(execute_data->call->fbc, OPENRASP_OP_LINENUM(opline->op2)))
     {
         return ZEND_USER_OPCODE_DISPATCH;

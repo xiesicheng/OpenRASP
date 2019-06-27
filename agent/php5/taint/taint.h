@@ -69,7 +69,7 @@ using taint::NodeSequence;
     } while (0)
 #endif
 
-#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
 #define OPENRASP_T(offset) (*EX_TMP_VAR(execute_data, offset))
 #define OPENRASP_CV(i) (*EX_CV_NUM(execute_data, i))
 #define OPENRASP_CV_OF(i) (*EX_CV_NUM(EG(current_execute_data), i))
