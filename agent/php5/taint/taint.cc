@@ -2294,3 +2294,153 @@ int openrasp_qm_assign_var_handler(ZEND_OPCODE_HANDLER_ARGS)
     execute_data->opline++;
     return ZEND_USER_OPCODE_CONTINUE;
 }
+
+int openrasp_send_var_handler(ZEND_OPCODE_HANDLER_ARGS)
+{
+    zend_op *opline = execute_data->opline;
+    zval **op1 = NULL;
+    openrasp_free_op free_op1 = {0};
+    zval *varptr;
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+    if ((opline->extended_value == ZEND_DO_FCALL_BY_NAME) && ARG_SHOULD_BE_SENT_BY_REF(execute_data->call->fbc, OPENRASP_OP_LINENUM(opline->op2)))
+    {
+        return openrasp_send_ref_handler(ZEND_OPCODE_HANDLER_ARGS_PASSTHRU);
+    }
+#else
+    if ((opline->extended_value == ZEND_DO_FCALL_BY_NAME) && ARG_SHOULD_BE_SENT_BY_REF(execute_data->fbc, OPENRASP_OP_LINENUM(opline->op2)))
+    {
+        return openrasp_send_ref_handler(ZEND_OPCODE_HANDLER_ARGS_PASSTHRU);
+    }
+#endif
+    switch (OPENRASP_OP1_TYPE(opline))
+    {
+    case IS_VAR:
+        op1 = OPENRASP_T(OPENRASP_OP1_VAR(opline)).var.ptr_ptr;
+        break;
+    case IS_CV:
+    {
+        zval **t = OPENRASP_CV_OF(OPENRASP_OP1_VAR(opline));
+        if (t && *t)
+        {
+            op1 = t;
+        }
+        else if (EG(active_symbol_table))
+        {
+            zend_compiled_variable *cv = &OPENRASP_CV_DEF_OF(OPENRASP_OP1_VAR(opline));
+            if (zend_hash_quick_find(EG(active_symbol_table), cv->name, cv->name_len + 1, cv->hash_value, (void **)&t) == SUCCESS)
+            {
+                op1 = t;
+            }
+        }
+    }
+    break;
+    }
+
+    if (!op1 ||
+        *op1 == &EG(error_zval) ||
+        *op1 == &EG(uninitialized_zval) ||
+        IS_STRING != Z_TYPE_PP(op1) ||
+        !PZVAL_IS_REF(*op1) ||
+        Z_REFCOUNT_PP(op1) < 2 ||
+        !Z_STRLEN_PP(op1) ||
+        !OPENRASP_TAINT_POSSIBLE(*op1))
+    {
+        return ZEND_USER_OPCODE_DISPATCH;
+    }
+printf("1\n");
+    MAKE_STD_ZVAL(varptr);
+    *varptr = **op1;
+    Z_SET_REFCOUNT_P(varptr, 0);
+    zval_copy_ctor(varptr);
+    Z_STRVAL_P(varptr) = (char *)erealloc(Z_STRVAL_P(varptr), Z_STRLEN_P(varptr) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
+    OPENRASP_TAINT_MARK(varptr, new NodeSequence(OPENRASP_TAINT_SEQUENCE(*op1)));
+
+    Z_ADDREF_P(varptr);
+    OPENRASP_ARG_PUSH(varptr);
+
+    switch (OPENRASP_OP1_TYPE(opline))
+    {
+    case IS_VAR:
+        if (free_op1.var)
+        {
+            zval_ptr_dtor(&free_op1.var);
+        }
+        break;
+    }
+
+    execute_data->opline++;
+    return ZEND_USER_OPCODE_CONTINUE;
+}
+
+int openrasp_send_ref_handler(ZEND_OPCODE_HANDLER_ARGS)
+{
+    zend_op *opline = execute_data->opline;
+    zval **op1 = NULL;
+    openrasp_free_op free_op1 = {0};
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION == 5)
+    if (execute_data->function_state.function->type == ZEND_INTERNAL_FUNCTION && !ARG_SHOULD_BE_SENT_BY_REF(execute_data->call->fbc, OPENRASP_OP_LINENUM(opline->op2)))
+    {
+        return ZEND_USER_OPCODE_DISPATCH;
+    }
+#else
+    if (execute_data->function_state.function->type == ZEND_INTERNAL_FUNCTION && !ARG_SHOULD_BE_SENT_BY_REF(execute_data->fbc, OPENRASP_OP_LINENUM(opline->op2)))
+    {
+        return ZEND_USER_OPCODE_DISPATCH;
+    }
+#endif
+    switch (OPENRASP_OP1_TYPE(opline))
+    {
+    case IS_VAR:
+        op1 = OPENRASP_T(OPENRASP_OP1_VAR(opline)).var.ptr_ptr;
+        break;
+    case IS_CV:
+    {
+        zval **t = OPENRASP_CV_OF(OPENRASP_OP1_VAR(opline));
+        if (t && *t)
+        {
+            op1 = t;
+        }
+        else if (EG(active_symbol_table))
+        {
+            zend_compiled_variable *cv = &OPENRASP_CV_DEF_OF(OPENRASP_OP1_VAR(opline));
+            if (zend_hash_quick_find(EG(active_symbol_table), cv->name, cv->name_len + 1, cv->hash_value, (void **)&t) == SUCCESS)
+            {
+                op1 = t;
+            }
+        }
+    }
+    break;
+    }
+
+    if (!op1 ||
+        *op1 == &EG(error_zval) ||
+        *op1 == &EG(uninitialized_zval) ||
+        IS_STRING != Z_TYPE_PP(op1) ||
+        PZVAL_IS_REF(*op1) ||
+        Z_REFCOUNT_PP(op1) < 2 ||
+        !Z_STRLEN_PP(op1) ||
+        !OPENRASP_TAINT_POSSIBLE(*op1))
+    {
+        return ZEND_USER_OPCODE_DISPATCH;
+    }
+
+    NodeSequence ns = OPENRASP_TAINT_SEQUENCE(*op1);
+    SEPARATE_ZVAL_TO_MAKE_IS_REF(op1);
+    Z_ADDREF_P(*op1);
+    Z_STRVAL_PP(op1) = (char *)erealloc(Z_STRVAL_PP(op1), Z_STRLEN_PP(op1) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
+    OPENRASP_TAINT_MARK(*op1, new NodeSequence(ns));
+    OPENRASP_ARG_PUSH(*op1);
+
+    switch (OPENRASP_OP1_TYPE(opline))
+    {
+    case IS_VAR:
+        if (free_op1.var)
+        {
+            zval_ptr_dtor(&free_op1.var);
+        }
+        break;
+    }
+
+    execute_data->opline++;
+    return ZEND_USER_OPCODE_CONTINUE;
+}

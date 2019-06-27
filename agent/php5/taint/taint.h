@@ -12,6 +12,12 @@ using taint::NodeSequence;
 #define OPENRASP_TAINT_POINTER_LENGTH sizeof(uintptr_t)
 #define OPENRASP_TAINT_SUFFIX_LENGTH (OPENRASP_TAINT_POINTER_LENGTH + OPENRASP_TAINT_MAGIC_LENGTH)
 
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION < 3)
+#define OPENRASP_ARG_PUSH(v) zend_ptr_stack_push(&EG(argument_stack), v TSRMLS_CC)
+#else
+#define OPENRASP_ARG_PUSH(v) zend_vm_stack_push(v TSRMLS_CC)
+#endif
+
 #ifndef MAKE_REAL_ZVAL_PTR
 #define MAKE_REAL_ZVAL_PTR(val)       \
     do                                \
@@ -146,3 +152,5 @@ int openrasp_add_string_handler(ZEND_OPCODE_HANDLER_ARGS);
 int openrasp_assign_ref_handler(ZEND_OPCODE_HANDLER_ARGS);
 int openrasp_qm_assign_handler(ZEND_OPCODE_HANDLER_ARGS);
 int openrasp_qm_assign_var_handler(ZEND_OPCODE_HANDLER_ARGS);
+int openrasp_send_var_handler(ZEND_OPCODE_HANDLER_ARGS);
+int openrasp_send_ref_handler(ZEND_OPCODE_HANDLER_ARGS);
