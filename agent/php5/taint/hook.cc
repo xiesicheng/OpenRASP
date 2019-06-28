@@ -25,15 +25,18 @@ POST_HOOK_FUNCTION(strval, TAINT);
 void post_global_strval_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
     zval **arg;
-    int tainted = 0;
 
     if (ZEND_NUM_ARGS() != 1 || zend_get_parameters_ex(1, &arg) == FAILURE)
     {
         WRONG_PARAM_COUNT;
     }
 
-    if (Z_TYPE_PP(arg) == IS_STRING && OPENRASP_TAINT_POSSIBLE(*arg))
+    if (Z_TYPE_PP(arg) == IS_STRING &&
+        OPENRASP_TAINT_POSSIBLE(*arg) &&
+        IS_STRING == Z_TYPE_P(return_value) &&
+        Z_STRLEN_P(return_value))
     {
-        return;
+        Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
+        OPENRASP_TAINT_MARK(return_value, new NodeSequence(OPENRASP_TAINT_SEQUENCE(*arg)));
     }
 }
