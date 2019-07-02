@@ -662,7 +662,7 @@ int openrasp_concat_handler(ZEND_OPCODE_HANDLER_ARGS)
     }
 
     concat_function(result, op1, op2 TSRMLS_CC);
-    if (ns.taintedSize() && IS_STRING == Z_TYPE_P(result))
+    if (ns.taintedSize() && IS_STRING == Z_TYPE_P(result) && ns.length() == Z_STRLEN_P(result))
     {
         Z_STRVAL_P(result) = (char *)erealloc(Z_STRVAL_P(result), Z_STRLEN_P(result) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
         OPENRASP_TAINT_MARK(result, new NodeSequence(ns));
@@ -872,7 +872,7 @@ static int openrasp_binary_assign_op_obj_helper(int (*binary_op)(zval *result, z
                 have_get_ptr = 1;
 
                 binary_op(*zptr, *zptr, value TSRMLS_CC);
-                if (ns_have_get_ptr.taintedSize() && IS_STRING == Z_TYPE_PP(zptr) && Z_STRLEN_PP(zptr))
+                if (ns_have_get_ptr.taintedSize() && IS_STRING == Z_TYPE_PP(zptr) && Z_STRLEN_PP(zptr) && ns_have_get_ptr.length() == Z_STRLEN_PP(zptr))
                 {
                     Z_STRVAL_PP(zptr) = (char *)erealloc(Z_STRVAL_PP(zptr), Z_STRLEN_PP(zptr) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
                     OPENRASP_TAINT_MARK(*zptr, new NodeSequence(ns_have_get_ptr));
@@ -933,7 +933,7 @@ static int openrasp_binary_assign_op_obj_helper(int (*binary_op)(zval *result, z
 
                 SEPARATE_ZVAL_IF_NOT_REF(&z);
                 binary_op(z, z, value TSRMLS_CC);
-                if (ns_no_get_ptr.taintedSize() && IS_STRING == Z_TYPE_P(z) && Z_STRLEN_P(z))
+                if (ns_no_get_ptr.taintedSize() && IS_STRING == Z_TYPE_P(z) && Z_STRLEN_P(z) && ns_no_get_ptr.length() == Z_STRLEN_P(z))
                 {
                     Z_STRVAL_P(z) = (char *)erealloc(Z_STRVAL_P(z), Z_STRLEN_P(z) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
                     OPENRASP_TAINT_MARK(z, new NodeSequence(ns_no_get_ptr));
@@ -1234,7 +1234,7 @@ static int openrasp_binary_assign_op_helper(int (*binary_op)(zval *result, zval 
             ns_obj.append(OPENRASP_TAINT_SEQUENCE(value));
         }
         binary_op(objval, objval, value TSRMLS_CC);
-        if (ns_obj.taintedSize() && IS_STRING == Z_TYPE_P(objval) && Z_STRLEN_P(objval))
+        if (ns_obj.taintedSize() && IS_STRING == Z_TYPE_P(objval) && Z_STRLEN_P(objval) && ns_obj.length() == Z_STRLEN_P(objval))
         {
             Z_STRVAL_P(objval) = (char *)erealloc(Z_STRVAL_P(objval), Z_STRLEN_P(objval) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
             OPENRASP_TAINT_MARK(objval, new NodeSequence(ns_obj));
@@ -1254,7 +1254,7 @@ static int openrasp_binary_assign_op_helper(int (*binary_op)(zval *result, zval 
             ns_nonobj.append(OPENRASP_TAINT_SEQUENCE(value));
         }
         binary_op(*var_ptr, *var_ptr, value TSRMLS_CC);
-        if (ns_nonobj.taintedSize() && IS_STRING == Z_TYPE_PP(var_ptr) && Z_STRLEN_PP(var_ptr))
+        if (ns_nonobj.taintedSize() && IS_STRING == Z_TYPE_PP(var_ptr) && Z_STRLEN_PP(var_ptr) && ns_nonobj.length() == Z_STRLEN_PP(var_ptr))
         {
             Z_STRVAL_PP(var_ptr) = (char *)erealloc(Z_STRVAL_PP(var_ptr), Z_STRLEN_PP(var_ptr) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
             OPENRASP_TAINT_MARK(*var_ptr, new NodeSequence(ns_nonobj));
@@ -1804,7 +1804,7 @@ int openrasp_add_char_handler(ZEND_OPCODE_HANDLER_ARGS)
 
     add_char_to_string(result, op1, OPENRASP_OP2_CONSTANT_PTR(opline));
 
-    if (ns.taintedSize() && IS_STRING == Z_TYPE_P(result))
+    if (ns.taintedSize() && IS_STRING == Z_TYPE_P(result) && ns.length() == Z_STRLEN_P(result))
     {
         Z_STRVAL_P(result) = (char *)erealloc(Z_STRVAL_P(result), Z_STRLEN_P(result) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
         OPENRASP_TAINT_MARK(result, new NodeSequence(ns));
@@ -2017,7 +2017,7 @@ int openrasp_add_var_handler(ZEND_OPCODE_HANDLER_ARGS)
         zval_dtor(op2);
     }
 
-    if (ns.taintedSize() && IS_STRING == Z_TYPE_P(result))
+    if (ns.taintedSize() && IS_STRING == Z_TYPE_P(result) && ns.length() == Z_STRLEN_P(result))
     {
         Z_STRVAL_P(result) = (char *)erealloc(Z_STRVAL_P(result), Z_STRLEN_P(result) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
         OPENRASP_TAINT_MARK(result, new NodeSequence(ns));
@@ -2109,7 +2109,7 @@ int openrasp_add_string_handler(ZEND_OPCODE_HANDLER_ARGS)
 
     add_string_to_string(result, op1, OPENRASP_OP2_CONSTANT_PTR(opline));
 
-    if (ns.taintedSize() && IS_STRING == Z_TYPE_P(result))
+    if (ns.taintedSize() && IS_STRING == Z_TYPE_P(result) && ns.length() == Z_STRLEN_P(result))
     {
         Z_STRVAL_P(result) = (char *)erealloc(Z_STRVAL_P(result), Z_STRLEN_P(result) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
         OPENRASP_TAINT_MARK(result, new NodeSequence(ns));
@@ -2269,7 +2269,7 @@ static void openrasp_assign_to_variable_reference(zval **variable_ptr_ptr, zval 
                 ZVAL_COPY_VALUE(*value_ptr_ptr, value_ptr);
                 value_ptr = *value_ptr_ptr;
                 zendi_zval_copy_ctor(*value_ptr);
-                if (ns.taintedSize() && Z_TYPE_P(value_ptr) == IS_STRING)
+                if (ns.taintedSize() && Z_TYPE_P(value_ptr) == IS_STRING && ns.length() == Z_STRLEN_P(value_ptr))
                 {
                     Z_STRVAL_P(value_ptr) = (char *)erealloc(Z_STRVAL_P(value_ptr), Z_STRLEN_P(value_ptr) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
                     OPENRASP_TAINT_MARK(value_ptr, new NodeSequence(ns));
