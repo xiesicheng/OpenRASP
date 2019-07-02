@@ -60,6 +60,31 @@ OPENRASP_HOOK_FUNCTION(sprintf, taint)
 #define sprintf php_sprintf
 #endif
 
+OPENRASP_HOOK_FUNCTION(vsprintf, taint)
+{
+    bool type_ignored = openrasp_check_type_ignored(TAINT TSRMLS_CC);
+    static bool processing = false;
+    NodeSequence ns;
+    if (!type_ignored)
+    {
+        if (!processing)
+        {
+            processing = true;
+            taint_formatted_print(ns, ht, 1, 0 TSRMLS_CC);
+            processing = false;
+        }
+    }
+    origin_function(INTERNAL_FUNCTION_PARAM_PASSTHRU);
+    if (!type_ignored && processing == false)
+    {
+        if (ns.taintedSize() && IS_STRING == Z_TYPE_P(return_value) && Z_STRLEN_P(return_value) && ns.length() == Z_STRLEN_P(return_value))
+        {
+            Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
+            OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns));
+        }
+    }
+}
+
 void post_global_strval_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
     zval **arg;
