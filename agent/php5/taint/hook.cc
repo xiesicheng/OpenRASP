@@ -29,6 +29,7 @@ inline static int openrasp_sprintf_getnumber(char *buffer, int *pos);
  * taint 相关hook点
  */
 POST_HOOK_FUNCTION(strval, TAINT);
+POST_HOOK_FUNCTION(explode, TAINT);
 #ifdef sprintf
 #undef sprintf
 #endif
@@ -82,25 +83,6 @@ OPENRASP_HOOK_FUNCTION(vsprintf, taint)
             Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
             OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns));
         }
-    }
-}
-
-void post_global_strval_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
-{
-    zval **arg;
-
-    if (ZEND_NUM_ARGS() != 1 || zend_get_parameters_ex(1, &arg) == FAILURE)
-    {
-        WRONG_PARAM_COUNT;
-    }
-
-    if (Z_TYPE_PP(arg) == IS_STRING &&
-        OPENRASP_TAINT_POSSIBLE(*arg) &&
-        IS_STRING == Z_TYPE_P(return_value) &&
-        Z_STRLEN_P(return_value))
-    {
-        Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
-        OPENRASP_TAINT_MARK(return_value, new NodeSequence(OPENRASP_TAINT_SEQUENCE(*arg)));
     }
 }
 
@@ -407,4 +389,104 @@ static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int f
         }
     }
     efree(args);
+}
+
+void post_global_strval_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    zval **arg;
+
+    if (ZEND_NUM_ARGS() != 1 || zend_get_parameters_ex(1, &arg) == FAILURE)
+    {
+        WRONG_PARAM_COUNT;
+    }
+
+    if (Z_TYPE_PP(arg) == IS_STRING &&
+        OPENRASP_TAINT_POSSIBLE(*arg) &&
+        IS_STRING == Z_TYPE_P(return_value) &&
+        Z_STRLEN_P(return_value))
+    {
+        Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
+        OPENRASP_TAINT_MARK(return_value, new NodeSequence(OPENRASP_TAINT_SEQUENCE(*arg)));
+    }
+}
+
+void post_global_explode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    int size = 0;
+
+    if (Z_TYPE_P(return_value) == IS_ARRAY && (size = zend_hash_num_elements(Z_ARRVAL_P(return_value))) > 0)
+    {
+        zval *zdelim = nullptr;
+        zval *zstr = nullptr;
+        long limit = LONG_MAX; /* No limit */
+
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zz|l", &zdelim, &zstr, &limit) == FAILURE)
+        {
+            return;
+        }
+
+        if (limit == 0)
+        {
+            limit = 1;
+        }
+
+        if (Z_TYPE_P(zstr) == IS_STRING && Z_STRLEN_P(zstr) &&
+            Z_TYPE_P(zdelim) == IS_STRING && Z_STRLEN_P(zdelim) &&
+            OPENRASP_TAINT_POSSIBLE(zstr))
+        {
+            NodeSequence ns = OPENRASP_TAINT_SEQUENCE(zstr);
+            std::string str(Z_STRVAL_P(zstr), Z_STRLEN_P(zstr));
+            std::string delim(Z_STRVAL_P(zdelim), Z_STRLEN_P(zdelim));
+            size_t start = 0;
+            size_t found = 0;
+            HashTable *ht = Z_ARRVAL_P(return_value);
+
+            for (zend_hash_internal_pointer_reset(ht);
+                 zend_hash_has_more_elements(ht) == SUCCESS;
+                 zend_hash_move_forward(ht))
+            {
+                char *key;
+                ulong idx;
+                int type;
+                type = zend_hash_get_current_key(ht, &key, &idx, 0);
+                if (type == HASH_KEY_NON_EXISTENT)
+                {
+                    continue;
+                }
+                zval **ele_value;
+                if (zend_hash_get_current_data(ht, (void **)&ele_value) != SUCCESS)
+                {
+                    continue;
+                }
+                if (IS_STRING == Z_TYPE_PP(ele_value) && type == HASH_KEY_IS_LONG)
+                {
+                    Z_STRVAL_PP(ele_value) = (char *)erealloc(Z_STRVAL_PP(ele_value), Z_STRLEN_PP(ele_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
+                    if (idx < size - 1)
+                    {
+                        found = str.find(delim, start);
+                        if (found != std::string::npos)
+                        {
+                            OPENRASP_TAINT_MARK(*ele_value, new NodeSequence(ns.sub(start, found - start)));
+                            start = found + delim.length();
+                        }
+                    }
+                    else if (idx == size - 1)
+                    {
+                        if (limit > 0)
+                        {
+                            OPENRASP_TAINT_MARK(*ele_value, new NodeSequence(ns.sub(start)));
+                        }
+                        else
+                        {
+                            found = str.find(delim, start);
+                            if (found != std::string::npos)
+                            {
+                                OPENRASP_TAINT_MARK(*ele_value, new NodeSequence(ns.sub(start, found - start)));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

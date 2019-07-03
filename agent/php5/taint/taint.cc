@@ -1304,9 +1304,7 @@ static int openrasp_binary_assign_op_helper(int (*binary_op)(zval *result, zval 
 
 void openrasp_taint_mark_strings(zval *symbol_table, std::string varsSource TSRMLS_DC)
 {
-    zval **ppzval;
     HashTable *ht = Z_ARRVAL_P(symbol_table);
-    HashPosition pos = {0};
 
     for (zend_hash_internal_pointer_reset(ht);
          zend_hash_has_more_elements(ht) == SUCCESS;
@@ -2439,7 +2437,7 @@ int openrasp_qm_assign_var_handler(ZEND_OPCODE_HANDLER_ARGS)
 int openrasp_send_var_handler(ZEND_OPCODE_HANDLER_ARGS)
 {
     zend_op *opline = execute_data->opline;
-    zval **op1 = NULL;
+    zval *op1 = NULL;
     openrasp_free_op free_op1 = {0};
     zval *varptr;
 #if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
@@ -2456,45 +2454,33 @@ int openrasp_send_var_handler(ZEND_OPCODE_HANDLER_ARGS)
     switch (OPENRASP_OP1_TYPE(opline))
     {
     case IS_VAR:
-        op1 = OPENRASP_T(OPENRASP_OP1_VAR(opline)).var.ptr_ptr;
+        op1 = OPENRASP_T(OPENRASP_OP1_VAR(opline)).var.ptr;
         break;
     case IS_CV:
     {
-        zval **t = OPENRASP_CV_OF(OPENRASP_OP1_VAR(opline));
-        if (t && *t)
-        {
-            op1 = t;
-        }
-        else if (EG(active_symbol_table))
-        {
-            zend_compiled_variable *cv = &OPENRASP_CV_DEF_OF(OPENRASP_OP1_VAR(opline));
-            if (zend_hash_quick_find(EG(active_symbol_table), cv->name, cv->name_len + 1, cv->hash_value, (void **)&t) == SUCCESS)
-            {
-                op1 = t;
-            }
-        }
+        op1 = openrasp_get_zval_ptr_cv(OPENRASP_OP1_NODE_PTR(opline), OPENRASP_GET_ZVAL_PTR_CV_2ND_ARG(BP_VAR_R) TSRMLS_CC);
     }
     break;
     }
 
     if (!op1 ||
-        *op1 == &EG(error_zval) ||
-        *op1 == &EG(uninitialized_zval) ||
-        IS_STRING != Z_TYPE_PP(op1) ||
-        !PZVAL_IS_REF(*op1) ||
-        Z_REFCOUNT_PP(op1) < 2 ||
-        !Z_STRLEN_PP(op1) ||
-        !OPENRASP_TAINT_POSSIBLE(*op1))
+        op1 == &EG(error_zval) ||
+        op1 == &EG(uninitialized_zval) ||
+        IS_STRING != Z_TYPE_P(op1) ||
+        !PZVAL_IS_REF(op1) ||
+        Z_REFCOUNT_P(op1) < 2 ||
+        !Z_STRLEN_P(op1) ||
+        !OPENRASP_TAINT_POSSIBLE(op1))
     {
         return ZEND_USER_OPCODE_DISPATCH;
     }
 
     MAKE_STD_ZVAL(varptr);
-    *varptr = **op1;
+    *varptr = *op1;
     Z_SET_REFCOUNT_P(varptr, 0);
     zval_copy_ctor(varptr);
     Z_STRVAL_P(varptr) = (char *)erealloc(Z_STRVAL_P(varptr), Z_STRLEN_P(varptr) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
-    OPENRASP_TAINT_MARK(varptr, new NodeSequence(OPENRASP_TAINT_SEQUENCE(*op1)));
+    OPENRASP_TAINT_MARK(varptr, new NodeSequence(OPENRASP_TAINT_SEQUENCE(op1)));
 
     Z_ADDREF_P(varptr);
     OPENRASP_ARG_PUSH(varptr);

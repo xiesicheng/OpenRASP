@@ -113,33 +113,38 @@ NodeSequence &NodeSequence::erase(size_t pos, size_t len)
     }
     cut(pos);
     cut(pos + len);
-    for (auto it = sequence.begin(); it != sequence.end(); it++)
+    auto it = sequence.begin();
+    while (it != sequence.end())
     {
         if (it->getEndIndex() < pos + len)
         {
             if (it->getStartIndex() >= pos)
             {
                 it = sequence.erase(it);
+                continue;
             }
         }
         else
         {
             it->shift(-len);
         }
+        it++;
     }
     stringLength -= len;
 }
 
-NodeSequence &NodeSequence::sub(size_t pos, size_t len)
+NodeSequence NodeSequence::sub(size_t pos, size_t len)
 {
-    if (pos > 0)
-    {
-        erase(0, pos);
-    }
+    NodeSequence res(*this);
     if (len != npos && pos + len < stringLength)
     {
-        erase(pos + len);
+        res.erase(pos + len);
     }
+    if (pos >= 0)
+    {
+        res.erase(0, pos);
+    }
+    return res;
 }
 
 std::string NodeSequence::dump() const
