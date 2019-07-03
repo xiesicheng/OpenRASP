@@ -26,6 +26,7 @@ static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int f
 inline static int openrasp_sprintf_getnumber(char *buffer, int *pos);
 static inline int php_charmask(unsigned char *input, int len, char *mask TSRMLS_DC);
 char *trim_taint(char *c, int len, char *what, int what_len, zval *return_value, int mode TSRMLS_DC);
+static void unchanege_taint(zval *arg, zval *return_value TSRMLS_DC);
 
 /**
  * taint 相关hook点
@@ -37,6 +38,8 @@ POST_HOOK_FUNCTION(join, TAINT);
 POST_HOOK_FUNCTION(trim, TAINT);
 POST_HOOK_FUNCTION(ltrim, TAINT);
 POST_HOOK_FUNCTION(rtrim, TAINT);
+POST_HOOK_FUNCTION(strtolower, TAINT);
+POST_HOOK_FUNCTION(strtoupper, TAINT);
 #ifdef sprintf
 #undef sprintf
 #endif
@@ -406,15 +409,7 @@ void post_global_strval_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     {
         WRONG_PARAM_COUNT;
     }
-
-    if (Z_TYPE_PP(arg) == IS_STRING &&
-        OPENRASP_TAINT_POSSIBLE(*arg) &&
-        IS_STRING == Z_TYPE_P(return_value) &&
-        Z_STRLEN_P(return_value))
-    {
-        Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
-        OPENRASP_TAINT_MARK(return_value, new NodeSequence(OPENRASP_TAINT_SEQUENCE(*arg)));
-    }
+    unchanege_taint(*arg, return_value TSRMLS_CC);
 }
 
 void post_global_explode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
@@ -784,4 +779,36 @@ void post_global_rtrim_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
         return;
     }
     trim_taint(zstr, what, what_len, return_value, 2 TSRMLS_CC);
+}
+
+static void unchanege_taint(zval *arg, zval *return_value TSRMLS_DC)
+{
+    if (Z_TYPE_P(arg) == IS_STRING &&
+        OPENRASP_TAINT_POSSIBLE(arg) &&
+        IS_STRING == Z_TYPE_P(return_value) &&
+        Z_STRLEN_P(return_value))
+    {
+        Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
+        OPENRASP_TAINT_MARK(return_value, new NodeSequence(OPENRASP_TAINT_SEQUENCE(arg)));
+    }
+}
+
+void post_global_strtolower_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    zval *arg;
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z", &arg) == FAILURE)
+    {
+        return;
+    }
+    unchanege_taint(arg, return_value TSRMLS_CC);
+}
+
+void post_global_strtoupper_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    zval *arg;
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z", &arg) == FAILURE)
+    {
+        return;
+    }
+    unchanege_taint(arg, return_value TSRMLS_CC);
 }
