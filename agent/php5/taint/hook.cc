@@ -30,6 +30,7 @@ inline static int openrasp_sprintf_getnumber(char *buffer, int *pos);
  */
 POST_HOOK_FUNCTION(strval, TAINT);
 POST_HOOK_FUNCTION(explode, TAINT);
+POST_HOOK_FUNCTION(implode, TAINT);
 #ifdef sprintf
 #undef sprintf
 #endif
@@ -488,5 +489,139 @@ void post_global_explode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
                 }
             }
         }
+    }
+}
+
+void post_global_implode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    zval **arg1 = NULL, **arg2 = NULL, *delim, *arr;
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "Z|Z", &arg1, &arg2) == FAILURE)
+    {
+        return;
+    }
+
+    if (arg2 == NULL)
+    {
+        if (Z_TYPE_PP(arg1) != IS_ARRAY)
+        {
+            return;
+        }
+
+        MAKE_STD_ZVAL(delim);
+        ZVAL_STRINGL(delim, "", sizeof("") - 1, 0);
+        SEPARATE_ZVAL(arg1);
+        arr = *arg1;
+    }
+    else
+    {
+        if (Z_TYPE_PP(arg1) == IS_ARRAY)
+        {
+            arr = *arg1;
+            convert_to_string_ex(arg2);
+            delim = *arg2;
+        }
+        else if (Z_TYPE_PP(arg2) == IS_ARRAY)
+        {
+            arr = *arg2;
+            convert_to_string_ex(arg1);
+            delim = *arg1;
+        }
+        else
+        {
+            return;
+        }
+    }
+    NodeSequence ns;
+    {
+        zval **tmp;
+        HashPosition pos;
+        int numelems, i = 0;
+        zval tmp_val;
+        int str_len;
+
+        numelems = zend_hash_num_elements(Z_ARRVAL_P(arr));
+
+        if (numelems == 0)
+        {
+            return;
+        }
+
+        zend_hash_internal_pointer_reset_ex(Z_ARRVAL_P(arr), &pos);
+
+        while (zend_hash_get_current_data_ex(Z_ARRVAL_P(arr), (void **)&tmp, &pos) == SUCCESS)
+        {
+            switch ((*tmp)->type)
+            {
+            case IS_STRING:
+                ns.append(OPENRASP_TAINT_SEQUENCE(*tmp));
+                break;
+
+            case IS_LONG:
+            {
+                char stmp[MAX_LENGTH_OF_LONG + 1];
+                str_len = slprintf(stmp, sizeof(stmp), "%ld", Z_LVAL_PP(tmp));
+                ns.append(str_len);
+            }
+            break;
+
+            case IS_BOOL:
+                if (Z_LVAL_PP(tmp) == 1)
+                {
+                    ns.append(1);
+                }
+                break;
+
+            case IS_NULL:
+                break;
+
+            case IS_DOUBLE:
+            {
+                char *stmp;
+                str_len = spprintf(&stmp, 0, "%.*G", (int)EG(precision), Z_DVAL_PP(tmp));
+                ns.append(str_len);
+                efree(stmp);
+            }
+            break;
+
+            case IS_OBJECT:
+            {
+                int copy;
+                zval expr;
+                zend_make_printable_zval(*tmp, &expr, &copy);
+                ns.append(OPENRASP_TAINT_SEQUENCE(&expr));
+                if (copy)
+                {
+                    zval_dtor(&expr);
+                }
+            }
+            break;
+
+            default:
+                tmp_val = **tmp;
+                zval_copy_ctor(&tmp_val);
+                convert_to_string(&tmp_val);
+                ns.append(OPENRASP_TAINT_SEQUENCE(&tmp_val));
+                zval_dtor(&tmp_val);
+                break;
+            }
+
+            if (++i != numelems)
+            {
+                ns.append(OPENRASP_TAINT_SEQUENCE(delim));
+            }
+            zend_hash_move_forward_ex(Z_ARRVAL_P(arr), &pos);
+        }
+    }
+
+    if (arg2 == NULL)
+    {
+        FREE_ZVAL(delim);
+    }
+
+    if (ns.taintedSize() && IS_STRING == Z_TYPE_P(return_value) && Z_STRLEN_P(return_value) && ns.length() == Z_STRLEN_P(return_value))
+    {
+        Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
+        OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns));
     }
 }
