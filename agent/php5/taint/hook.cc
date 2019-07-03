@@ -31,6 +31,7 @@ inline static int openrasp_sprintf_getnumber(char *buffer, int *pos);
 POST_HOOK_FUNCTION(strval, TAINT);
 POST_HOOK_FUNCTION(explode, TAINT);
 POST_HOOK_FUNCTION(implode, TAINT);
+POST_HOOK_FUNCTION(join, TAINT);
 #ifdef sprintf
 #undef sprintf
 #endif
@@ -624,4 +625,9 @@ void post_global_implode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
         Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
         OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns));
     }
+}
+
+void post_global_join_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    return post_global_implode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAM_PASSTHRU);
 }
