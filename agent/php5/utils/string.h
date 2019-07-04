@@ -25,6 +25,7 @@ namespace openrasp
 bool start_with(const std::string &str, const std::string &prefix);
 bool end_with(const std::string &str, const std::string &suffix);
 void string_replace(std::string &str, const std::string &from, const std::string &to);
+size_t find_case_insensitive(const std::string &strHaystack, const std::string &strNeedle, size_t pos = 0);
 
 } // namespace openrasp
 

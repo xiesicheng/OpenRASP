@@ -15,6 +15,7 @@
  */
 
 #include "string.h"
+#include <algorithm>
 namespace openrasp
 {
 
@@ -48,6 +49,17 @@ void string_replace(std::string &str, const std::string &from, const std::string
         str.replace(start_pos, from.length(), to);
         start_pos += to.length();
     }
+}
+
+size_t find_case_insensitive(const std::string &strHaystack, const std::string &strNeedle, size_t pos)
+{
+    auto strHaystack_start_iter = strHaystack.begin();
+    std::advance(strHaystack_start_iter, pos);
+    auto it = std::search(
+        strHaystack_start_iter, strHaystack.end(),
+        strNeedle.begin(), strNeedle.end(),
+        [](char ch1, char ch2) { return std::toupper(ch1) == std::toupper(ch2); });
+    return (it != strHaystack.end()) ? (it - strHaystack.begin()) : std::string::npos;
 }
 
 } // namespace openrasp

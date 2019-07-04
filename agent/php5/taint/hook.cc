@@ -16,6 +16,7 @@
 
 #include "openrasp_hook.h"
 #include "taint.h"
+#include "utils/string.h"
 
 #define ALIGN_LEFT 0
 #define ALIGN_RIGHT 1
@@ -26,7 +27,8 @@ static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int f
 inline static int openrasp_sprintf_getnumber(char *buffer, int *pos);
 static inline int php_charmask(unsigned char *input, int len, char *mask TSRMLS_DC);
 char *trim_taint(char *c, int len, char *what, int what_len, zval *return_value, int mode TSRMLS_DC);
-static void unchanege_taint(zval *arg, zval *return_value TSRMLS_DC);
+static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval **subject, zval *result, int case_sensitivity, int *replace_count TSRMLS_DC);
+static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, int case_sensitivity);
 
 /**
  * taint 相关hook点
@@ -40,6 +42,7 @@ POST_HOOK_FUNCTION(ltrim, TAINT);
 POST_HOOK_FUNCTION(rtrim, TAINT);
 POST_HOOK_FUNCTION(strtolower, TAINT);
 POST_HOOK_FUNCTION(strtoupper, TAINT);
+POST_HOOK_FUNCTION(str_replace, TAINT);
 #ifdef sprintf
 #undef sprintf
 #endif
@@ -409,7 +412,7 @@ void post_global_strval_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     {
         WRONG_PARAM_COUNT;
     }
-    unchanege_taint(*arg, return_value TSRMLS_CC);
+    str_unchanege_taint(*arg, return_value TSRMLS_CC);
 }
 
 void post_global_explode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
@@ -781,18 +784,6 @@ void post_global_rtrim_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     trim_taint(zstr, what, what_len, return_value, 2 TSRMLS_CC);
 }
 
-static void unchanege_taint(zval *arg, zval *return_value TSRMLS_DC)
-{
-    if (Z_TYPE_P(arg) == IS_STRING &&
-        OPENRASP_TAINT_POSSIBLE(arg) &&
-        IS_STRING == Z_TYPE_P(return_value) &&
-        Z_STRLEN_P(return_value))
-    {
-        Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
-        OPENRASP_TAINT_MARK(return_value, new NodeSequence(OPENRASP_TAINT_SEQUENCE(arg)));
-    }
-}
-
 void post_global_strtolower_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
     zval *arg;
@@ -800,7 +791,7 @@ void post_global_strtolower_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     {
         return;
     }
-    unchanege_taint(arg, return_value TSRMLS_CC);
+    str_unchanege_taint(arg, return_value TSRMLS_CC);
 }
 
 void post_global_strtoupper_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
@@ -810,5 +801,222 @@ void post_global_strtoupper_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     {
         return;
     }
-    unchanege_taint(arg, return_value TSRMLS_CC);
+    str_unchanege_taint(arg, return_value TSRMLS_CC);
+}
+
+static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval **subject, zval *result, int case_sensitivity, int *replace_count TSRMLS_DC)
+{
+    zval **search_entry = nullptr;
+    zval **replace_entry = nullptr;
+
+    /* Make sure we're dealing with strings. */
+    convert_to_string_ex(subject);
+    NodeSequence ns_subject = OPENRASP_TAINT_SEQUENCE(*subject);
+    std::string str_subject(Z_STRVAL_PP(subject), Z_STRLEN_PP(subject));
+    if (Z_STRLEN_PP(subject) == 0)
+    {
+        return;
+    }
+    NodeSequence ns_replace;
+    std::string str_replace;
+
+    /* If search is an array */
+    if (Z_TYPE_P(search) == IS_ARRAY)
+    {
+        zend_hash_internal_pointer_reset(Z_ARRVAL_P(search));
+
+        if (Z_TYPE_P(replace) == IS_ARRAY)
+        {
+            zend_hash_internal_pointer_reset(Z_ARRVAL_P(replace));
+        }
+        else
+        {
+            /* Set replacement value to the passed one */
+            ns_replace = OPENRASP_TAINT_SEQUENCE(replace);
+            str_replace = std::string(Z_STRVAL_P(replace), Z_STRLEN_P(replace));
+        }
+
+        /* For each entry in the search array, get the entry */
+        while (zend_hash_get_current_data(Z_ARRVAL_P(search), (void **)&search_entry) == SUCCESS)
+        {
+            std::string str_search_entry = std::string(Z_STRVAL_PP(search_entry), Z_STRLEN_PP(search_entry));
+            NodeSequence ns_search_entry = OPENRASP_TAINT_SEQUENCE(*search_entry);
+            /* Make sure we're dealing with strings. */
+            SEPARATE_ZVAL(search_entry);
+            convert_to_string(*search_entry);
+            if (Z_STRLEN_PP(search_entry) == 0)
+            {
+                zend_hash_move_forward(Z_ARRVAL_P(search));
+                if (Z_TYPE_P(replace) == IS_ARRAY)
+                {
+                    zend_hash_move_forward(Z_ARRVAL_P(replace));
+                }
+                continue;
+            }
+
+            /* If replace is an array. */
+            if (Z_TYPE_P(replace) == IS_ARRAY)
+            {
+                /* Get current entry */
+                if (zend_hash_get_current_data(Z_ARRVAL_P(replace), (void **)&replace_entry) == SUCCESS)
+                {
+                    /* Make sure we're dealing with strings. */
+                    convert_to_string_ex(replace_entry);
+                    ns_replace = OPENRASP_TAINT_SEQUENCE(*replace_entry);
+                    str_replace = std::string(Z_STRVAL_PP(replace_entry), Z_STRLEN_PP(replace_entry));
+                    zend_hash_move_forward(Z_ARRVAL_P(replace));
+                }
+                else
+                {
+                    ns_replace = NodeSequence(0);
+                    str_replace = "";
+                }
+            }
+            size_t found = 0;
+            do
+            {
+                if (!case_sensitivity)
+                {
+                    found = openrasp::find_case_insensitive(str_subject, str_search_entry, found);
+                }
+                else
+                {
+                    found = str_subject.find(str_search_entry, found);
+                }
+                if (found != std::string::npos)
+                {
+                    str_subject.erase(found, str_search_entry.length());
+                    ns_subject.erase(found, str_search_entry.length());
+                    str_subject.insert(found, str_replace);
+                    ns_subject.insert(found, ns_replace);
+                    if (nullptr != replace_count)
+                    {
+                        (*replace_count)++;
+                    }
+                }
+            } while (found != std::string::npos);
+
+            if (ns_subject.taintedSize() && Z_TYPE_P(result) == IS_STRING && Z_STRLEN_P(result) &&
+                ns_subject.length() == Z_STRLEN_P(result))
+            {
+                Z_STRVAL_P(result) = (char *)erealloc(Z_STRVAL_P(result), Z_STRLEN_P(result) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
+                OPENRASP_TAINT_MARK(result, new NodeSequence(ns_subject));
+            }
+            zend_hash_move_forward(Z_ARRVAL_P(search));
+        }
+    }
+    else
+    {
+        std::string str_search = std::string(Z_STRVAL_P(search), Z_STRLEN_P(search));
+        NodeSequence ns_search = OPENRASP_TAINT_SEQUENCE(search);
+        ns_replace = OPENRASP_TAINT_SEQUENCE(replace);
+        str_replace = std::string(Z_STRVAL_P(replace), Z_STRLEN_P(replace));
+        size_t found = 0;
+        do
+        {
+            if (!case_sensitivity)
+            {
+                found = openrasp::find_case_insensitive(str_subject, str_search, found);
+            }
+            else
+            {
+                found = str_subject.find(str_search, found);
+            }
+            if (found != std::string::npos)
+            {
+                str_subject.erase(found, str_search.length());
+                ns_subject.erase(found, str_search.length());
+                str_subject.insert(found, str_replace);
+                ns_subject.insert(found, ns_replace);
+                if (nullptr != replace_count)
+                {
+                    (*replace_count)++;
+                }
+            }
+        } while (found != std::string::npos);
+        if (ns_subject.taintedSize() && Z_TYPE_P(result) == IS_STRING && Z_STRLEN_P(result) &&
+            ns_subject.length() == Z_STRLEN_P(result))
+        {
+            Z_STRVAL_P(result) = (char *)erealloc(Z_STRVAL_P(result), Z_STRLEN_P(result) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
+            OPENRASP_TAINT_MARK(result, new NodeSequence(ns_subject));
+        }
+    }
+}
+
+static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, int case_sensitivity)
+{
+    zval **subject, **search, **replace, **subject_entry, **zcount = NULL;
+    char *string_key;
+    uint string_key_len;
+    ulong num_key;
+    int count = 0;
+    int argc = ZEND_NUM_ARGS();
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ZZZ|Z", &search, &replace, &subject, &zcount) == FAILURE)
+    {
+        return;
+    }
+
+    SEPARATE_ZVAL(search);
+    SEPARATE_ZVAL(replace);
+    SEPARATE_ZVAL(subject);
+
+    /* Make sure we're dealing with strings and do the replacement. */
+    if (Z_TYPE_PP(search) != IS_ARRAY)
+    {
+        convert_to_string_ex(search);
+        convert_to_string_ex(replace);
+    }
+    else if (Z_TYPE_PP(replace) != IS_ARRAY)
+    {
+        convert_to_string_ex(replace);
+    }
+
+    /* if subject is an array */
+    if (Z_TYPE_PP(subject) == IS_ARRAY)
+    {
+        zend_hash_internal_pointer_reset(Z_ARRVAL_PP(subject));
+        while (zend_hash_get_current_data(Z_ARRVAL_PP(subject), (void **)&subject_entry) == SUCCESS)
+        {
+            zval **ele_value;
+            switch (zend_hash_get_current_key_ex(Z_ARRVAL_PP(subject), &string_key,
+                                                 &string_key_len, &num_key, 0, NULL))
+            {
+            case HASH_KEY_IS_STRING:
+                if (zend_hash_find(Z_ARRVAL_P(return_value), string_key, string_key_len + 1, (void **)&ele_value) != SUCCESS ||
+                    Z_TYPE_PP(subject_entry) != Z_TYPE_PP(ele_value))
+                {
+                    continue;
+                }
+                break;
+            case HASH_KEY_IS_LONG:
+                if (zend_hash_index_find(Z_ARRVAL_P(return_value), num_key, (void **)&ele_value) != SUCCESS ||
+                    Z_TYPE_PP(subject_entry) != Z_TYPE_PP(ele_value))
+                {
+                    continue;
+                }
+                break;
+            }
+
+            if (Z_TYPE_PP(subject_entry) != IS_ARRAY && Z_TYPE_PP(subject_entry) != IS_OBJECT)
+            {
+                SEPARATE_ZVAL(subject_entry);
+                openrasp_str_replace_in_subject(*search, *replace, subject_entry, *ele_value, case_sensitivity, ((argc > 3) ? &count : NULL) TSRMLS_CC);
+            }
+            else
+            {
+                openrasp_taint_deep_copy(*subject_entry, *ele_value TSRMLS_CC);
+            }
+            zend_hash_move_forward(Z_ARRVAL_PP(subject));
+        }
+    }
+    else
+    { /* if subject is not an array */
+        openrasp_str_replace_in_subject(*search, *replace, subject, return_value, case_sensitivity, ((argc > 3) ? &count : NULL) TSRMLS_CC);
+    }
+}
+
+void post_global_str_replace_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAM_PASSTHRU, 1);
 }

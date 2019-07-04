@@ -1345,6 +1345,57 @@ void openrasp_taint_mark_strings(zval *symbol_table, std::string varsSource TSRM
     }
 }
 
+void openrasp_taint_deep_copy(zval *source, zval *target TSRMLS_DC)
+{
+    switch (Z_TYPE_P(source) & IS_CONSTANT_TYPE_MASK)
+    {
+    case IS_STRING:
+        str_unchanege_taint(source, target TSRMLS_CC);
+        break;
+    case IS_ARRAY:
+    {
+        HashTable *ht = Z_ARRVAL_P(source);
+
+        for (zend_hash_internal_pointer_reset(ht);
+             zend_hash_has_more_elements(ht) == SUCCESS;
+             zend_hash_move_forward(ht))
+        {
+            char *key;
+            ulong idx;
+            int type;
+            type = zend_hash_get_current_key(ht, &key, &idx, 0);
+            if (type == HASH_KEY_NON_EXISTENT)
+            {
+                continue;
+            }
+            zval **source_ele_value;
+            zval **target_ele_value;
+            if (zend_hash_get_current_data(ht, (void **)&source_ele_value) != SUCCESS)
+            {
+                continue;
+            }
+            if (type == HASH_KEY_IS_STRING)
+            {
+                if (zend_hash_find(Z_ARRVAL_P(target), key, strlen(key) + 1, (void **)&target_ele_value) == SUCCESS &&
+                    Z_TYPE_PP(source_ele_value) == Z_TYPE_PP(target_ele_value))
+                {
+                    openrasp_taint_deep_copy(*source_ele_value, *target_ele_value TSRMLS_CC);
+                }
+            }
+            else if (type == HASH_KEY_IS_LONG)
+            {
+                 if (zend_hash_index_find(Z_ARRVAL_P(target), idx, (void **)&target_ele_value) == SUCCESS &&
+                    Z_TYPE_PP(source_ele_value) == Z_TYPE_PP(target_ele_value))
+                {
+                    openrasp_taint_deep_copy(*source_ele_value, *target_ele_value TSRMLS_CC);
+                }
+            }
+        }
+    }
+    break;
+    }
+}
+
 static void openrasp_pzval_unlock_func(zval *z, openrasp_free_op *should_free, int unref)
 {
     if (!Z_DELREF_P(z))
@@ -2604,4 +2655,16 @@ PHP_FUNCTION(taint_dump)
     }
 
     RETURN_FALSE;
+}
+
+void str_unchanege_taint(zval *src, zval *dest TSRMLS_DC)
+{
+    if (Z_TYPE_P(src) == IS_STRING &&
+        OPENRASP_TAINT_POSSIBLE(src) &&
+        IS_STRING == Z_TYPE_P(dest) &&
+        Z_STRLEN_P(src) == Z_STRLEN_P(dest))
+    {
+        Z_STRVAL_P(dest) = (char *)erealloc(Z_STRVAL_P(dest), Z_STRLEN_P(dest) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
+        OPENRASP_TAINT_MARK(dest, new NodeSequence(OPENRASP_TAINT_SEQUENCE(src)));
+    }
 }
