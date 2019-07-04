@@ -23,6 +23,10 @@
 #define ADJ_WIDTH 1
 #define ADJ_PRECISION 2
 
+#define STR_PAD_LEFT 0
+#define STR_PAD_RIGHT 1
+#define STR_PAD_BOTH 2
+
 static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int format_offset TSRMLS_DC);
 inline static int openrasp_sprintf_getnumber(char *buffer, int *pos);
 static inline int php_charmask(unsigned char *input, int len, char *mask TSRMLS_DC);
@@ -43,6 +47,7 @@ POST_HOOK_FUNCTION(rtrim, TAINT);
 POST_HOOK_FUNCTION(strtolower, TAINT);
 POST_HOOK_FUNCTION(strtoupper, TAINT);
 POST_HOOK_FUNCTION(str_replace, TAINT);
+POST_HOOK_FUNCTION(str_pad, TAINT);
 #ifdef sprintf
 #undef sprintf
 #endif
@@ -1019,4 +1024,87 @@ static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, i
 void post_global_str_replace_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
     openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAM_PASSTHRU, 1);
+}
+
+void post_global_str_pad_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    /* Input arguments */
+    zval *z_input = nullptr;
+    long pad_length; /* Length to pad to */
+
+    /* Helper variables */
+    size_t num_pad_chars; /* Number of padding characters (total - input size) */
+    char *result = NULL;  /* Resulting string */
+    int result_len = 0;   /* Length of the resulting string */
+    zval *z_pad_str = nullptr;
+    long pad_type_val = STR_PAD_RIGHT; /* The padding type value */
+    int i, left_pad = 0, right_pad = 0;
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zl|zl", &z_input, &pad_length, &z_pad_str, &pad_type_val) == FAILURE ||
+        Z_TYPE_P(z_input) != IS_STRING ||
+        Z_TYPE_P(z_pad_str) != IS_STRING)
+    {
+        return;
+    }
+
+    if (pad_length <= 0 || (pad_length - Z_STRLEN_P(z_input)) <= 0)
+    {
+        str_unchanege_taint(z_input, return_value TSRMLS_CC);
+        return;
+    }
+
+    if (Z_STRLEN_P(z_pad_str) == 0 || pad_type_val < STR_PAD_LEFT || pad_type_val > STR_PAD_BOTH)
+    {
+        return;
+    }
+
+    num_pad_chars = pad_length - Z_STRLEN_P(z_input);
+    if (num_pad_chars >= INT_MAX)
+    {
+        return;
+    }
+
+    NodeSequence ns = OPENRASP_TAINT_SEQUENCE(z_input);
+    switch (pad_type_val)
+    {
+    case STR_PAD_RIGHT:
+        left_pad = 0;
+        right_pad = num_pad_chars;
+        break;
+
+    case STR_PAD_LEFT:
+        left_pad = num_pad_chars;
+        right_pad = 0;
+        break;
+
+    case STR_PAD_BOTH:
+        left_pad = num_pad_chars / 2;
+        right_pad = num_pad_chars - left_pad;
+        break;
+    }
+
+    NodeSequence ns_left;
+    while (ns_left.length() < left_pad)
+    {
+        ns_left.append(OPENRASP_TAINT_SEQUENCE(z_pad_str));
+    }
+    ns_left.erase(left_pad);
+    ns.insert(0, ns_left);
+
+    NodeSequence ns_right;
+    while (ns_right.length() < right_pad)
+    {
+        ns_right.append(OPENRASP_TAINT_SEQUENCE(z_pad_str));
+    }
+    ns_right.erase(right_pad);
+    ns.append(ns_right);
+
+    if (ns.taintedSize() &&
+        Z_TYPE_P(return_value) == IS_STRING &&
+        Z_STRLEN_P(return_value) &&
+        ns.length() == Z_STRLEN_P(return_value))
+    {
+        Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
+        OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns));
+    }
 }
