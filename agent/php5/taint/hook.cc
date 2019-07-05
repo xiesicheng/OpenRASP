@@ -33,6 +33,7 @@ static inline int php_charmask(unsigned char *input, int len, char *mask TSRMLS_
 char *trim_taint(char *c, int len, char *what, int what_len, zval *return_value, int mode TSRMLS_DC);
 static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval **subject, zval *result, int case_sensitivity, int *replace_count TSRMLS_DC);
 static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, int case_sensitivity);
+static int openrasp_needle_char(zval *needle, char *target TSRMLS_DC);
 
 /**
  * taint 相关hook点
@@ -48,6 +49,8 @@ POST_HOOK_FUNCTION(strtolower, TAINT);
 POST_HOOK_FUNCTION(strtoupper, TAINT);
 POST_HOOK_FUNCTION(str_replace, TAINT);
 POST_HOOK_FUNCTION(str_pad, TAINT);
+POST_HOOK_FUNCTION(strstr, TAINT);
+
 #ifdef sprintf
 #undef sprintf
 #endif
@@ -1106,5 +1109,102 @@ void post_global_str_pad_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     {
         Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
         OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns));
+    }
+}
+
+static int openrasp_needle_char(zval *needle, char *target TSRMLS_DC)
+{
+    switch (Z_TYPE_P(needle))
+    {
+    case IS_LONG:
+    case IS_BOOL:
+        *target = (char)Z_LVAL_P(needle);
+        return SUCCESS;
+    case IS_NULL:
+        *target = '\0';
+        return SUCCESS;
+    case IS_DOUBLE:
+        *target = (char)(int)Z_DVAL_P(needle);
+        return SUCCESS;
+    case IS_OBJECT:
+    {
+        zval holder = *needle;
+        zval_copy_ctor(&(holder));
+        convert_to_long(&(holder));
+        if (Z_TYPE(holder) != IS_LONG)
+        {
+            return FAILURE;
+        }
+        *target = (char)Z_LVAL(holder);
+        return SUCCESS;
+    }
+    default:
+    {
+        return FAILURE;
+    }
+    }
+}
+
+void post_global_strstr_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    if (Z_TYPE_P(return_value) != IS_STRING || Z_STRLEN_P(return_value) == 0)
+    {
+        return;
+    }
+
+    zval *needle;
+    zval *z_haystack;
+    const char *found = nullptr;
+    char needle_char[2];
+    long found_offset;
+    zend_bool part = 0;
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zz|b", &z_haystack, &needle, &part) == FAILURE)
+    {
+        return;
+    }
+
+    if (Z_TYPE_P(z_haystack) == IS_STRING && OPENRASP_TAINT_POSSIBLE(z_haystack))
+    {
+        NodeSequence ns = OPENRASP_TAINT_SEQUENCE(z_haystack);
+        char *haystack = Z_STRVAL_P(z_haystack);
+        int haystack_len = Z_STRLEN_P(z_haystack);
+        if (Z_TYPE_P(needle) == IS_STRING)
+        {
+            if (!Z_STRLEN_P(needle))
+            {
+                return;
+            }
+
+            found = php_memnstr(haystack, Z_STRVAL_P(needle), Z_STRLEN_P(needle), haystack + haystack_len);
+        }
+        else
+        {
+            if (openrasp_needle_char(needle, needle_char TSRMLS_CC) != SUCCESS)
+            {
+                return;
+            }
+            needle_char[1] = 0;
+
+            found = php_memnstr(haystack, needle_char, 1, haystack + haystack_len);
+        }
+        if (found)
+        {
+            found_offset = found - haystack;
+            if (part)
+            {
+                ns.erase(found_offset);
+            }
+            else
+            {
+                ns.erase(0, found_offset);
+            }
+        }
+        if (ns.taintedSize() &&
+            ns.length() == Z_STRLEN_P(return_value))
+        {
+            Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
+            OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns));
+        }
     }
 }
