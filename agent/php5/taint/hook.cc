@@ -50,6 +50,7 @@ POST_HOOK_FUNCTION(strtoupper, TAINT);
 POST_HOOK_FUNCTION(str_replace, TAINT);
 POST_HOOK_FUNCTION(str_pad, TAINT);
 POST_HOOK_FUNCTION(strstr, TAINT);
+POST_HOOK_FUNCTION(substr, TAINT);
 
 #ifdef sprintf
 #undef sprintf
@@ -1205,6 +1206,99 @@ void post_global_strstr_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
         {
             Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
             OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns));
+        }
+    }
+}
+
+void post_global_substr_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    if (Z_TYPE_P(return_value) != IS_STRING || Z_STRLEN_P(return_value) == 0)
+    {
+        return;
+    }
+
+    zval *z_str = nullptr;
+    long l = 0, f;
+    int argc = ZEND_NUM_ARGS();
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zl|l", &z_str, &f, &l) == FAILURE)
+    {
+        return;
+    }
+    if (Z_TYPE_P(z_str) == IS_STRING && OPENRASP_TAINT_POSSIBLE(z_str))
+    {
+        int str_len = Z_STRLEN_P(z_str);
+        NodeSequence ns = OPENRASP_TAINT_SEQUENCE(z_str);
+        if (argc > 2)
+        {
+            if ((l < 0 && -l > str_len))
+            {
+                return;
+            }
+            else if (l > str_len)
+            {
+                l = str_len;
+            }
+        }
+        else
+        {
+            l = str_len;
+        }
+
+        if (f > str_len)
+        {
+            return;
+        }
+        else if (f < 0 && -f > str_len)
+        {
+            f = 0;
+        }
+
+        if (l < 0 && (l + str_len - f) < 0)
+        {
+            return;
+        }
+
+        /* if "from" position is negative, count start position from the end
+	 * of the string
+	 */
+        if (f < 0)
+        {
+            f = str_len + f;
+            if (f < 0)
+            {
+                f = 0;
+            }
+        }
+
+        /* if "length" position is negative, set it to the length
+	 * needed to stop that many chars from the end of the string
+	 */
+        if (l < 0)
+        {
+            l = (str_len - f) + l;
+            if (l < 0)
+            {
+                l = 0;
+            }
+        }
+
+        if (f >= str_len)
+        {
+            return;
+        }
+
+        if ((f + l) > str_len)
+        {
+            l = str_len - f;
+        }
+
+        NodeSequence ns_sub = ns.sub(f, l);
+        if (ns_sub.taintedSize() &&
+            ns_sub.length() == Z_STRLEN_P(return_value))
+        {
+            Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
+            OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns_sub));
         }
     }
 }
