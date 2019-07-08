@@ -23,6 +23,7 @@
 #include <set>
 #include "agent/shared_config_manager.h"
 #include "utils/utf.h"
+#include "taint/taint.h"
 
 extern "C"
 {
@@ -77,11 +78,17 @@ bool check_database_connection_username(INTERNAL_FUNCTION_PARAMETERS, init_conne
     return need_block;
 }
 
-void plugin_sql_check(char *query, int query_len, char *server TSRMLS_DC)
+void plugin_sql_check(zval *z_query, char *server TSRMLS_DC)
 {
     openrasp::Isolate *isolate = OPENRASP_V8_G(isolate);
-    if (isolate)
+    if (z_query != nullptr &&
+        Z_TYPE_P(z_query) == IS_STRING &&
+        Z_STRVAL_P(z_query) != nullptr &&
+        Z_STRLEN_P(z_query) &&
+        isolate)
     {
+        char *query = Z_STRVAL_P(z_query);
+        int query_len = Z_STRLEN_P(z_query);
         std::string cache_key = std::string(get_check_type_name(SQL)).append(query, query_len);
         if (OPENRASP_HOOK_G(lru).contains(cache_key))
         {
@@ -93,6 +100,20 @@ void plugin_sql_check(char *query, int query_len, char *server TSRMLS_DC)
             auto params = v8::Object::New(isolate);
             params->Set(openrasp::NewV8String(isolate, "query"), openrasp::NewV8String(isolate, query, query_len));
             params->Set(openrasp::NewV8String(isolate, "server"), openrasp::NewV8String(isolate, server));
+            if (OPENRASP_TAINT_POSSIBLE(z_query))
+            {
+                auto tainted_arr = v8::Array::New(isolate);
+                taint::NodeSequence ns = OPENRASP_TAINT_SEQUENCE(z_query);
+                int index = 0;
+                ns.read([&](const taint::TaintNode &node) {
+                    auto taint_result = v8::Object::New(isolate);
+                    taint_result->Set(openrasp::NewV8String(isolate, "start"), v8::Integer::New(isolate, node.getStartIndex()));
+                    taint_result->Set(openrasp::NewV8String(isolate, "end"), v8::Integer::New(isolate, node.getEndIndex()));
+                    taint_result->Set(openrasp::NewV8String(isolate, "source"), openrasp::NewV8String(isolate, node.getSource()));
+                    tainted_arr->Set(index++, taint_result);
+                });
+                params->Set(openrasp::NewV8String(isolate, "tainted_info"), tainted_arr);
+            }
             check_result = Check(isolate, openrasp::NewV8String(isolate, get_check_type_name(SQL)), params, OPENRASP_CONFIG(plugin.timeout.millis));
         }
         if (check_result == openrasp::CheckResult::kCache)

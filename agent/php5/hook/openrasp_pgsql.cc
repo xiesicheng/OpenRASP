@@ -88,26 +88,26 @@ void post_global_pg_pconnect_DB_CONNECTION(OPENRASP_INTERNAL_FUNCTION_PARAMETERS
  */
 void pre_global_pg_query_SQL(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
-    zval *pgsql_link = NULL;
-    char *query;
-    int query_len, argc = ZEND_NUM_ARGS();
+    zval *pgsql_link = nullptr;
+    zval *z_query = nullptr;
+    int argc = ZEND_NUM_ARGS();
 
     if (argc == 1)
     {
-        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &query, &query_len) == FAILURE)
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z", &z_query) == FAILURE)
         {
             return;
         }
     }
     else
     {
-        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "rs", &pgsql_link, &query, &query_len) == FAILURE)
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "rz", &pgsql_link, &z_query) == FAILURE)
         {
             return;
         }
     }
 
-    plugin_sql_check(query, query_len, "pgsql" TSRMLS_CC);
+    plugin_sql_check(z_query, "pgsql" TSRMLS_CC);
 }
 
 /**
@@ -120,25 +120,26 @@ void pre_global_pg_send_query_SQL(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 
 void pre_global_pg_prepare_SQL_PREPARED(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
-    zval *pgsql_link = NULL;
-    char *query, *stmtname;
-    int query_len, stmtname_len, argc = ZEND_NUM_ARGS();
+    zval *pgsql_link = nullptr;
+    zval *z_query = nullptr;
+    char *stmtname;
+    int stmtname_len, argc = ZEND_NUM_ARGS();
 
     if (argc == 2)
     {
-        if (zend_parse_parameters(argc TSRMLS_CC, "ss", &stmtname, &stmtname_len, &query, &query_len) == FAILURE)
+        if (zend_parse_parameters(argc TSRMLS_CC, "sz", &stmtname, &stmtname_len, &z_query) == FAILURE)
         {
             return;
         }
     }
     else
     {
-        if (zend_parse_parameters(argc TSRMLS_CC, "rss",
-                                  &pgsql_link, &stmtname, &stmtname_len, &query, &query_len) == FAILURE)
+        if (zend_parse_parameters(argc TSRMLS_CC, "rsz",
+                                  &pgsql_link, &stmtname, &stmtname_len, &z_query) == FAILURE)
         {
             return;
         }
     }
 
-    plugin_sql_check(query, query_len, "pgsql" TSRMLS_CC);
+    plugin_sql_check(z_query, "pgsql" TSRMLS_CC);
 }

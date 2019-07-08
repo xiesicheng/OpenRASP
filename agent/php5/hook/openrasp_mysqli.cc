@@ -199,14 +199,13 @@ void post_mysqli_real_connect_SQL_ERROR(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 //mysqli::query
 void pre_mysqli_query_SQL(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
-    char *query = NULL;
-    int query_len;
+    zval *z_query = nullptr;
     long resultmode = MYSQLI_STORE_RESULT;
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|l", &query, &query_len, &resultmode) == FAILURE)
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z|l", &z_query, &resultmode) == FAILURE)
     {
         return;
     }
-    plugin_sql_check(query, query_len, "mysql" TSRMLS_CC);
+    plugin_sql_check(z_query, "mysql" TSRMLS_CC);
 }
 
 void post_mysqli_query_SQL_ERROR(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
@@ -279,15 +278,14 @@ void post_global_mysqli_real_connect_SQL_ERROR(OPENRASP_INTERNAL_FUNCTION_PARAME
 void pre_global_mysqli_query_SQL(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
     zval *mysql_link;
-    char *query = NULL;
-    int query_len;
+    zval *z_query = nullptr;
     long resultmode = MYSQLI_STORE_RESULT;
 
-    if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "os|l", &mysql_link, &query, &query_len, &resultmode) == FAILURE)
+    if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "oz|l", &mysql_link, &z_query, &resultmode) == FAILURE)
     {
         return;
     }
-    plugin_sql_check(query, query_len, "mysql" TSRMLS_CC);
+    plugin_sql_check(z_query, "mysql" TSRMLS_CC);
 }
 
 void post_global_mysqli_query_SQL_ERROR(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
@@ -324,15 +322,14 @@ void post_global_mysqli_query_SQL_ERROR(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 void pre_global_mysqli_real_query_SQL(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
     zval *mysql_link;
-    char *query = NULL;
-    int query_len;
+    zval *z_query = nullptr;
 
-    if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "os", &mysql_link, &query, &query_len) == FAILURE)
+    if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "oz", &mysql_link, &z_query) == FAILURE)
     {
         return;
     }
 
-    plugin_sql_check(query, query_len, "mysql" TSRMLS_CC);
+    plugin_sql_check(z_query, "mysql" TSRMLS_CC);
 }
 
 void post_global_mysqli_real_query_SQL_ERROR(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
@@ -342,16 +339,15 @@ void post_global_mysqli_real_query_SQL_ERROR(OPENRASP_INTERNAL_FUNCTION_PARAMETE
 
 void pre_global_mysqli_prepare_SQL_PREPARED(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
-    char *query = NULL;
-    int query_len;
+    zval *z_query = nullptr;
     zval *mysql_link;
 
-    if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "os", &mysql_link, &query, &query_len) == FAILURE)
+    if (zend_parse_method_parameters(ZEND_NUM_ARGS() TSRMLS_CC, getThis(), "oz", &mysql_link, &z_query) == FAILURE)
     {
         return;
     }
 
-    plugin_sql_check(query, query_len, "mysql" TSRMLS_CC);
+    plugin_sql_check(z_query, "mysql" TSRMLS_CC);
 }
 
 void post_global_mysqli_prepare_SQL_ERROR(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
@@ -361,14 +357,13 @@ void post_global_mysqli_prepare_SQL_ERROR(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 
 void pre_mysqli_prepare_SQL_PREPARED(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
-    char *query = NULL;
-    int query_len;
+    zval *z_query = nullptr;
 
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &query, &query_len) == FAILURE)
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z", &z_query) == FAILURE)
     {
         return;
     }
-    plugin_sql_check(query, query_len, "mysql" TSRMLS_CC);
+    plugin_sql_check(z_query, "mysql" TSRMLS_CC);
 }
 
 void post_mysqli_prepare_SQL_ERROR(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)

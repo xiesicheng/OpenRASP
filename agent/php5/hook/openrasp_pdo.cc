@@ -183,15 +183,14 @@ static bool init_pdo_connection_entry(INTERNAL_FUNCTION_PARAMETERS, sql_connecti
 void pre_pdo_query_SQL(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
     pdo_dbh_t *dbh = reinterpret_cast<pdo_dbh_t *>(zend_object_store_get_object(getThis() TSRMLS_CC));
-    char *statement;
-    int statement_len;
+    zval *z_statement = nullptr;
 
     if (!ZEND_NUM_ARGS() ||
-        FAILURE == zend_parse_parameters(1 TSRMLS_CC, "s", &statement, &statement_len))
+        FAILURE == zend_parse_parameters(1 TSRMLS_CC, "z", &z_statement))
     {
         return;
     }
-    plugin_sql_check(statement, statement_len, const_cast<char *>(dbh->driver->driver_name) TSRMLS_CC);
+    plugin_sql_check(z_statement, const_cast<char *>(dbh->driver->driver_name) TSRMLS_CC);
 }
 
 void post_pdo_query_SQL_ERROR(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
@@ -280,16 +279,14 @@ void post_pdo___construct_SQL_ERROR(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 void pre_pdo_prepare_SQL_PREPARED(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
     pdo_dbh_t *dbh = reinterpret_cast<pdo_dbh_t *>(zend_object_store_get_object(getThis() TSRMLS_CC));
-    char *statement;
-    int statement_len;
+    zval *z_statement = nullptr;
     zval *options = NULL;
 
-    if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|a", &statement,
-                                         &statement_len, &options))
+    if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z|a", &z_statement, &options))
     {
         return;
     }
-    plugin_sql_check(statement, statement_len, const_cast<char *>(dbh->driver->driver_name) TSRMLS_CC);
+    plugin_sql_check(z_statement, const_cast<char *>(dbh->driver->driver_name) TSRMLS_CC);
 }
 
 void post_pdo_prepare_SQL_ERROR(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)

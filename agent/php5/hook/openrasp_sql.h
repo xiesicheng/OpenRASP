@@ -85,7 +85,7 @@ typedef SqlConnectionEntry sql_connection_entry;
 
 typedef bool (*init_connection_t)(INTERNAL_FUNCTION_PARAMETERS, sql_connection_entry *sql_connection_p);
 
-void plugin_sql_check(char *query, int query_len, char *server TSRMLS_DC);
+void plugin_sql_check(zval *z_query, char *server TSRMLS_DC);
 bool check_database_connection_username(INTERNAL_FUNCTION_PARAMETERS, init_connection_t connection_init_func,
                                         int enforce_policy, sql_connection_entry *conn_entry);
 bool mysql_error_code_filtered(long err_code);
