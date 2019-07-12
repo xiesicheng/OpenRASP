@@ -32,7 +32,7 @@ inline static int openrasp_sprintf_getnumber(char *buffer, int *pos);
 static inline int php_charmask(unsigned char *input, int len, char *mask TSRMLS_DC);
 char *trim_taint(char *c, int len, char *what, int what_len, zval *return_value, int mode TSRMLS_DC);
 static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval **subject, zval *result, int case_sensitivity, int *replace_count TSRMLS_DC);
-static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, int case_sensitivity);
+static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, int case_sensitivity, zval *origin_subject, zval *origin_replace);
 static int openrasp_needle_char(zval *needle, char *target TSRMLS_DC);
 
 /**
@@ -47,10 +47,42 @@ POST_HOOK_FUNCTION(ltrim, TAINT);
 POST_HOOK_FUNCTION(rtrim, TAINT);
 POST_HOOK_FUNCTION(strtolower, TAINT);
 POST_HOOK_FUNCTION(strtoupper, TAINT);
-POST_HOOK_FUNCTION(str_replace, TAINT);
 POST_HOOK_FUNCTION(str_pad, TAINT);
 POST_HOOK_FUNCTION(strstr, TAINT);
 POST_HOOK_FUNCTION(substr, TAINT);
+
+OPENRASP_HOOK_FUNCTION(str_replace, taint)
+{
+    bool type_ignored = openrasp_check_type_ignored(TAINT TSRMLS_CC);
+    zval *origin_subject = nullptr;
+    zval *origin_replace = nullptr;
+    if (!type_ignored)
+    {
+        zval **subject, **search, **replace, **subject_entry, **zcount = NULL;
+        char *string_key;
+        uint string_key_len;
+        ulong num_key;
+        int count = 0;
+        int argc = ZEND_NUM_ARGS();
+
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ZZZ|Z", &search, &replace, &subject, &zcount) == SUCCESS)
+        {
+            if (Z_REFCOUNT_PP(replace) > 1)
+            {
+                origin_replace = *replace;
+            }
+            if (Z_REFCOUNT_PP(subject) > 1)
+            {
+                origin_subject = *subject;
+            }
+        }
+    }
+    origin_function(INTERNAL_FUNCTION_PARAM_PASSTHRU);
+    if (!type_ignored)
+    {
+        openrasp_str_replace_common(INTERNAL_FUNCTION_PARAM_PASSTHRU, TAINT, 1, origin_subject, origin_replace);
+    }
+}
 
 #ifdef sprintf
 #undef sprintf
@@ -952,7 +984,7 @@ static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval **
     }
 }
 
-static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, int case_sensitivity)
+static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, int case_sensitivity, zval *origin_subject, zval *origin_replace)
 {
     zval **subject, **search, **replace, **subject_entry, **zcount = NULL;
     char *string_key;
@@ -969,6 +1001,14 @@ static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, i
     SEPARATE_ZVAL(search);
     SEPARATE_ZVAL(replace);
     SEPARATE_ZVAL(subject);
+    if (origin_replace != nullptr)
+    {
+        openrasp_taint_deep_copy(origin_replace, *replace TSRMLS_CC);
+    }
+    if (origin_subject != nullptr)
+    {
+        openrasp_taint_deep_copy(origin_subject, *subject TSRMLS_CC);
+    }
 
     /* Make sure we're dealing with strings and do the replacement. */
     if (Z_TYPE_PP(search) != IS_ARRAY)
@@ -1025,11 +1065,6 @@ static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, i
     }
 }
 
-void post_global_str_replace_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
-{
-    openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAM_PASSTHRU, 1);
-}
-
 void post_global_str_pad_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
     /* Input arguments */
@@ -1044,11 +1079,35 @@ void post_global_str_pad_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     long pad_type_val = STR_PAD_RIGHT; /* The padding type value */
     int i, left_pad = 0, right_pad = 0;
 
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zl|zl", &z_input, &pad_length, &z_pad_str, &pad_type_val) == FAILURE ||
-        Z_TYPE_P(z_input) != IS_STRING ||
-        Z_TYPE_P(z_pad_str) != IS_STRING)
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zl|zl", &z_input, &pad_length, &z_pad_str, &pad_type_val) == FAILURE)
     {
         return;
+    }
+
+    if (Z_TYPE_P(z_input) != IS_STRING)
+    {
+        return;
+    }
+
+    NodeSequence ns_pad;
+    if (nullptr == z_pad_str)
+    {
+        ns_pad = NodeSequence(1);
+    }
+    else
+    {
+        if (Z_TYPE_P(z_pad_str) != IS_STRING)
+        {
+            return;
+        }
+        else
+        {
+            if (Z_STRLEN_P(z_pad_str) == 0)
+            {
+                return;
+            }
+            ns_pad = OPENRASP_TAINT_SEQUENCE(z_pad_str);
+        }
     }
 
     if (pad_length <= 0 || (pad_length - Z_STRLEN_P(z_input)) <= 0)
@@ -1057,7 +1116,7 @@ void post_global_str_pad_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
         return;
     }
 
-    if (Z_STRLEN_P(z_pad_str) == 0 || pad_type_val < STR_PAD_LEFT || pad_type_val > STR_PAD_BOTH)
+    if (pad_type_val < STR_PAD_LEFT || pad_type_val > STR_PAD_BOTH)
     {
         return;
     }
@@ -1090,7 +1149,7 @@ void post_global_str_pad_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     NodeSequence ns_left;
     while (ns_left.length() < left_pad)
     {
-        ns_left.append(OPENRASP_TAINT_SEQUENCE(z_pad_str));
+        ns_left.append(ns_pad);
     }
     ns_left.erase(left_pad);
     ns.insert(0, ns_left);
@@ -1098,7 +1157,7 @@ void post_global_str_pad_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     NodeSequence ns_right;
     while (ns_right.length() < right_pad)
     {
-        ns_right.append(OPENRASP_TAINT_SEQUENCE(z_pad_str));
+        ns_right.append(ns_pad);
     }
     ns_right.erase(right_pad);
     ns.append(ns_right);
