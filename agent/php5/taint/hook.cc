@@ -162,6 +162,13 @@ inline static int openrasp_sprintf_getnumber(char *buffer, int *pos)
     }
 }
 
+typedef struct ReplaceItem_t
+{
+    int pos;
+    size_t erase_length;
+    NodeSequence insert_ns;
+} ReplaceItem;
+
 static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int format_offset TSRMLS_DC)
 {
     zval ***args, **z_format;
@@ -170,6 +177,7 @@ static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int f
     char *format, padding;
     int always_sign;
     int format_len;
+    std::vector<ReplaceItem> replace_tiems;
 
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "+", &args, &argc) == FAILURE)
     {
@@ -230,8 +238,8 @@ static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int f
         }
         else if (format[inpos + 1] == '%')
         {
-            ns.erase(inpos, 1);
             inpos += 2;
+            replace_tiems.push_back({inpos, 1, 0});
         }
         else
         {
@@ -365,7 +373,9 @@ static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int f
             }
             else
             {
+                zval *origin_args_argnum = *(args[argnum]);
                 SEPARATE_ZVAL(args[argnum]);
+                openrasp_taint_deep_copy(origin_args_argnum, *(args[argnum])TSRMLS_CC);
                 tmp = *(args[argnum]);
             }
             if (format[inpos] == 's' && Z_TYPE_P(tmp) == IS_STRING && item_ns.taintedSize())
@@ -404,8 +414,7 @@ static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int f
                         item_ns.append(1);
                     }
                 }
-                ns.erase(percentage_mark_pos, inpos - percentage_mark_pos + 1);
-                ns.insert(percentage_mark_pos, item_ns);
+                replace_tiems.push_back({percentage_mark_pos, inpos - percentage_mark_pos + 1, item_ns});
                 if (use_copy)
                 {
                     zval_dtor(&var_copy);
@@ -429,8 +438,7 @@ static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int f
                 if (call_user_function(EG(function_table), nullptr, &function, &retval, 2, params TSRMLS_CC) == SUCCESS &&
                     Z_TYPE(retval) == IS_STRING)
                 {
-                    ns.erase(percentage_mark_pos, inpos - percentage_mark_pos + 1);
-                    ns.insert(percentage_mark_pos, Z_STRLEN(retval));
+                    replace_tiems.push_back({percentage_mark_pos, inpos - percentage_mark_pos + 1, Z_STRLEN(retval)});
                     zval_dtor(&retval);
                 }
                 zval_ptr_dtor(&n_format);
@@ -441,6 +449,13 @@ static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int f
             }
             inpos++;
         }
+    }
+    auto item = replace_tiems.rbegin();
+    while (item != replace_tiems.rend())
+    {
+        ns.erase(item->pos, item->erase_length);
+        ns.insert(item->pos, item->insert_ns);
+        ++item;
     }
     efree(args);
 }
