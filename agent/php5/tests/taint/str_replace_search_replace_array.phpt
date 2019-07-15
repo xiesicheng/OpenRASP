@@ -12,11 +12,11 @@ a=openrasp&b=test
 <?php
 $a = $_GET['a'];
 $subject = "name $a";
-$a0 = str_replace(array("pe", "as"), array("123", "456"), $subject);
+$a0 = str_replace(array("pe", "as"), array($_GET['b'], $_GET['b']), $subject);
 var_dump(taint_dump($a0));
 ?>
 --EXPECT--
-array(3) {
+array(5) {
   [0]=>
   array(3) {
     ["source"]=>
@@ -29,19 +29,37 @@ array(3) {
   [1]=>
   array(3) {
     ["source"]=>
-    string(10) "$_GET['a']"
+    string(10) "$_GET['b']"
     ["startIndex"]=>
-    int(9)
+    int(6)
     ["endIndex"]=>
-    int(10)
+    int(9)
   }
   [2]=>
   array(3) {
     ["source"]=>
     string(10) "$_GET['a']"
     ["startIndex"]=>
-    int(14)
+    int(10)
     ["endIndex"]=>
-    int(14)
+    int(11)
+  }
+  [3]=>
+  array(3) {
+    ["source"]=>
+    string(10) "$_GET['b']"
+    ["startIndex"]=>
+    int(12)
+    ["endIndex"]=>
+    int(15)
+  }
+  [4]=>
+  array(3) {
+    ["source"]=>
+    string(10) "$_GET['a']"
+    ["startIndex"]=>
+    int(16)
+    ["endIndex"]=>
+    int(16)
   }
 }

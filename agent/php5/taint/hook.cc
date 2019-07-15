@@ -32,7 +32,7 @@ inline static int openrasp_sprintf_getnumber(char *buffer, int *pos);
 static inline int php_charmask(unsigned char *input, int len, char *mask TSRMLS_DC);
 char *trim_taint(char *c, int len, char *what, int what_len, zval *return_value, int mode TSRMLS_DC);
 static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval **subject, zval *result, int case_sensitivity, int *replace_count TSRMLS_DC);
-static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, int case_sensitivity, zval *origin_subject, zval *origin_replace);
+static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, int case_sensitivity, zval *origin_subject);
 static int openrasp_needle_char(zval *needle, char *target TSRMLS_DC);
 
 /**
@@ -55,7 +55,6 @@ OPENRASP_HOOK_FUNCTION(str_replace, taint)
 {
     bool type_ignored = openrasp_check_type_ignored(TAINT TSRMLS_CC);
     zval *origin_subject = nullptr;
-    zval *origin_replace = nullptr;
     if (!type_ignored)
     {
         zval **subject, **search, **replace, **subject_entry, **zcount = NULL;
@@ -67,10 +66,6 @@ OPENRASP_HOOK_FUNCTION(str_replace, taint)
 
         if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ZZZ|Z", &search, &replace, &subject, &zcount) == SUCCESS)
         {
-            if (Z_REFCOUNT_PP(replace) > 1)
-            {
-                origin_replace = *replace;
-            }
             if (Z_REFCOUNT_PP(subject) > 1)
             {
                 origin_subject = *subject;
@@ -80,7 +75,7 @@ OPENRASP_HOOK_FUNCTION(str_replace, taint)
     origin_function(INTERNAL_FUNCTION_PARAM_PASSTHRU);
     if (!type_ignored)
     {
-        openrasp_str_replace_common(INTERNAL_FUNCTION_PARAM_PASSTHRU, TAINT, 1, origin_subject, origin_replace);
+        openrasp_str_replace_common(INTERNAL_FUNCTION_PARAM_PASSTHRU, TAINT, 1, origin_subject);
     }
 }
 
@@ -999,7 +994,7 @@ static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval **
     }
 }
 
-static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, int case_sensitivity, zval *origin_subject, zval *origin_replace)
+static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, int case_sensitivity, zval *origin_subject)
 {
     zval **subject, **search, **replace, **subject_entry, **zcount = NULL;
     char *string_key;
@@ -1016,10 +1011,6 @@ static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, i
     SEPARATE_ZVAL(search);
     SEPARATE_ZVAL(replace);
     SEPARATE_ZVAL(subject);
-    if (origin_replace != nullptr)
-    {
-        openrasp_taint_deep_copy(origin_replace, *replace TSRMLS_CC);
-    }
     if (origin_subject != nullptr)
     {
         openrasp_taint_deep_copy(origin_subject, *subject TSRMLS_CC);
