@@ -49,6 +49,7 @@ POST_HOOK_FUNCTION(strtolower, TAINT);
 POST_HOOK_FUNCTION(strtoupper, TAINT);
 POST_HOOK_FUNCTION(str_pad, TAINT);
 POST_HOOK_FUNCTION(strstr, TAINT);
+POST_HOOK_FUNCTION(stristr, TAINT);
 POST_HOOK_FUNCTION(substr, TAINT);
 
 OPENRASP_HOOK_FUNCTION(str_replace, taint)
@@ -76,6 +77,34 @@ OPENRASP_HOOK_FUNCTION(str_replace, taint)
     if (!type_ignored)
     {
         openrasp_str_replace_common(INTERNAL_FUNCTION_PARAM_PASSTHRU, TAINT, 1, origin_subject);
+    }
+}
+
+OPENRASP_HOOK_FUNCTION(str_ireplace, taint)
+{
+    bool type_ignored = openrasp_check_type_ignored(TAINT TSRMLS_CC);
+    zval *origin_subject = nullptr;
+    if (!type_ignored)
+    {
+        zval **subject, **search, **replace, **subject_entry, **zcount = NULL;
+        char *string_key;
+        uint string_key_len;
+        ulong num_key;
+        int count = 0;
+        int argc = ZEND_NUM_ARGS();
+
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ZZZ|Z", &search, &replace, &subject, &zcount) == SUCCESS)
+        {
+            if (Z_REFCOUNT_PP(subject) > 1)
+            {
+                origin_subject = *subject;
+            }
+        }
+    }
+    origin_function(INTERNAL_FUNCTION_PARAM_PASSTHRU);
+    if (!type_ignored)
+    {
+        openrasp_str_replace_common(INTERNAL_FUNCTION_PARAM_PASSTHRU, TAINT, 0, origin_subject);
     }
 }
 
@@ -1365,5 +1394,75 @@ void post_global_substr_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
             Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
             OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns_sub));
         }
+    }
+}
+
+void post_global_stristr_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    if (Z_TYPE_P(return_value) != IS_STRING || Z_STRLEN_P(return_value) == 0)
+    {
+        return;
+    }
+
+    zval *needle;
+    zval *z_haystack;
+    const char *found = nullptr;
+    char needle_char[2];
+    long found_offset;
+    zend_bool part = 0;
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zz|b", &z_haystack, &needle, &part) == FAILURE)
+    {
+        return;
+    }
+
+    if (Z_TYPE_P(z_haystack) == IS_STRING && OPENRASP_TAINT_POSSIBLE(z_haystack))
+    {
+        NodeSequence ns = OPENRASP_TAINT_SEQUENCE(z_haystack);
+        char *haystack = Z_STRVAL_P(z_haystack);
+        int haystack_len = Z_STRLEN_P(z_haystack);
+        char *haystack_dup = estrndup(haystack, haystack_len);
+        if (Z_TYPE_P(needle) == IS_STRING)
+        {
+            char *orig_needle;
+            if (!Z_STRLEN_P(needle))
+            {
+                efree(haystack_dup);
+                return;
+            }
+            orig_needle = estrndup(Z_STRVAL_P(needle), Z_STRLEN_P(needle));
+            found = php_stristr(haystack_dup, orig_needle, haystack_len, Z_STRLEN_P(needle));
+            efree(orig_needle);
+        }
+        else
+        {
+            if (openrasp_needle_char(needle, needle_char TSRMLS_CC) != SUCCESS)
+            {
+                efree(haystack_dup);
+                return;
+            }
+            needle_char[1] = 0;
+
+            found = php_stristr(haystack_dup, needle_char,	haystack_len, 1);
+        }
+        if (found)
+        {
+            found_offset = found - haystack_dup;
+            if (part)
+            {
+                ns.erase(found_offset);
+            }
+            else
+            {
+                ns.erase(0, found_offset);
+            }
+        }
+        if (ns.taintedSize() &&
+            ns.length() == Z_STRLEN_P(return_value))
+        {
+            Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
+            OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns));
+        }
+        efree(haystack_dup);
     }
 }
