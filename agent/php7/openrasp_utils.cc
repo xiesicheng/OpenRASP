@@ -124,7 +124,12 @@ void format_source_code_arr(zval *source_code_arr)
 
 std::vector<std::string> format_debug_backtrace_arr()
 {
-    std::vector<DebugTrace> trace = build_debug_trace(OPENRASP_CONFIG(plugin.maxstack));
+    return format_debug_backtrace_arr(OPENRASP_CONFIG(plugin.maxstack));
+}
+
+std::vector<std::string> format_debug_backtrace_arr(long limit)
+{
+    std::vector<DebugTrace> trace = build_debug_trace(limit);
     std::vector<std::string> array;
     for (DebugTrace &item : trace)
     {
@@ -389,7 +394,7 @@ zval *fetch_http_globals(int vars_id)
         if (Z_TYPE(PG(http_globals)[vars_id]) == IS_ARRAY ||
             zend_is_auto_global_str(const_cast<char *>(it->second.c_str()), it->second.length()))
         {
-            return &PG(http_globals)[TRACK_VARS_SERVER];
+            return &PG(http_globals)[it->first];
         }
     }
     return nullptr;
@@ -397,41 +402,41 @@ zval *fetch_http_globals(int vars_id)
 
 bool verify_remote_management_ini()
 {
-	if (openrasp_ini.remote_management_enable && need_alloc_shm_current_sapi())
-	{
-		if (nullptr == openrasp_ini.backend_url || strcmp(openrasp_ini.backend_url, "") == 0)
-		{
-			openrasp_error(LEVEL_WARNING, CONFIG_ERROR, _("openrasp.backend_url is required when remote management is enabled."));
-			return false;
-		}
-		if (nullptr == openrasp_ini.app_id || strcmp(openrasp_ini.app_id, "") == 0)
-		{
-			openrasp_error(LEVEL_WARNING, CONFIG_ERROR, _("openrasp.app_id is required when remote management is enabled."));
-			return false;
-		}
-		else
-		{
-			if (!openrasp::regex_match(openrasp_ini.app_id, "^[0-9a-fA-F]{40}$"))
-			{
-				openrasp_error(LEVEL_WARNING, CONFIG_ERROR, _("openrasp.app_id must be exactly 40 characters long."));
-				return false;
-			}
-		}
-		if (nullptr == openrasp_ini.app_secret || strcmp(openrasp_ini.app_secret, "") == 0)
-		{
-			openrasp_error(LEVEL_WARNING, CONFIG_ERROR, _("openrasp.app_secret is required when remote management is enabled."));
-			return false;
-		}
-		else
-		{
-			if (!openrasp::regex_match(openrasp_ini.app_secret, "^[0-9a-zA-Z_-]{43,45}"))
-			{
-				openrasp_error(LEVEL_WARNING, CONFIG_ERROR, _("openrasp.app_secret configuration format is incorrect."));
-				return false;
-			}
-		}
-	}
-	return true;
+    if (openrasp_ini.remote_management_enable && need_alloc_shm_current_sapi())
+    {
+        if (nullptr == openrasp_ini.backend_url || strcmp(openrasp_ini.backend_url, "") == 0)
+        {
+            openrasp_error(LEVEL_WARNING, CONFIG_ERROR, _("openrasp.backend_url is required when remote management is enabled."));
+            return false;
+        }
+        if (nullptr == openrasp_ini.app_id || strcmp(openrasp_ini.app_id, "") == 0)
+        {
+            openrasp_error(LEVEL_WARNING, CONFIG_ERROR, _("openrasp.app_id is required when remote management is enabled."));
+            return false;
+        }
+        else
+        {
+            if (!openrasp::regex_match(openrasp_ini.app_id, "^[0-9a-fA-F]{40}$"))
+            {
+                openrasp_error(LEVEL_WARNING, CONFIG_ERROR, _("openrasp.app_id must be exactly 40 characters long."));
+                return false;
+            }
+        }
+        if (nullptr == openrasp_ini.app_secret || strcmp(openrasp_ini.app_secret, "") == 0)
+        {
+            openrasp_error(LEVEL_WARNING, CONFIG_ERROR, _("openrasp.app_secret is required when remote management is enabled."));
+            return false;
+        }
+        else
+        {
+            if (!openrasp::regex_match(openrasp_ini.app_secret, "^[0-9a-zA-Z_-]{43,45}"))
+            {
+                openrasp_error(LEVEL_WARNING, CONFIG_ERROR, _("openrasp.app_secret configuration format is incorrect."));
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 std::map<std::string, std::string> get_env_map()
@@ -451,4 +456,3 @@ std::map<std::string, std::string> get_env_map()
     }
     return result;
 }
-
