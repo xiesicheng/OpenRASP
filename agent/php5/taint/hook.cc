@@ -51,6 +51,8 @@ POST_HOOK_FUNCTION(str_pad, TAINT);
 POST_HOOK_FUNCTION(strstr, TAINT);
 POST_HOOK_FUNCTION(stristr, TAINT);
 POST_HOOK_FUNCTION(substr, TAINT);
+POST_HOOK_FUNCTION(dirname, TAINT);
+POST_HOOK_FUNCTION(basename, TAINT);
 
 OPENRASP_HOOK_FUNCTION(str_replace, taint)
 {
@@ -1443,7 +1445,7 @@ void post_global_stristr_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
             }
             needle_char[1] = 0;
 
-            found = php_stristr(haystack_dup, needle_char,	haystack_len, 1);
+            found = php_stristr(haystack_dup, needle_char, haystack_len, 1);
         }
         if (found)
         {
@@ -1464,5 +1466,61 @@ void post_global_stristr_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
             OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns));
         }
         efree(haystack_dup);
+    }
+}
+
+void post_global_dirname_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    if (Z_TYPE_P(return_value) != IS_STRING || Z_STRLEN_P(return_value) == 0 ||
+        (Z_STRLEN_P(return_value) == 1 && (strcmp(Z_STRVAL_P(return_value), "/") == 0 || strcmp(Z_STRVAL_P(return_value), ".") == 0)))
+    {
+        return;
+    }
+
+    zval *z_str;
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z", &z_str) == FAILURE)
+    {
+        return;
+    }
+    if (Z_TYPE_P(z_str) == IS_STRING && OPENRASP_TAINT_POSSIBLE(z_str))
+    {
+        NodeSequence ns = OPENRASP_TAINT_SEQUENCE(z_str);
+        ns.erase(Z_STRLEN_P(return_value));
+        if (ns.taintedSize() &&
+            ns.length() == Z_STRLEN_P(return_value))
+        {
+            Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
+            OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns));
+        }
+    }
+}
+
+void post_global_basename_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    if (Z_TYPE_P(return_value) != IS_STRING || Z_STRLEN_P(return_value) == 0)
+    {
+        return;
+    }
+
+    zval *z_string = nullptr;
+    zval *z_suffix = nullptr;
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z|z", &z_string, &z_suffix) == FAILURE)
+    {
+        return;
+    }
+    if (Z_TYPE_P(z_string) == IS_STRING && OPENRASP_TAINT_POSSIBLE(z_string))
+    {
+        NodeSequence ns = OPENRASP_TAINT_SEQUENCE(z_string);
+        int string_len = Z_STRLEN_P(z_string);
+        int suffix_len = (nullptr != z_suffix && Z_TYPE_P(z_suffix) == IS_STRING) ? Z_STRLEN_P(z_suffix) : 0;
+        NodeSequence ns_base = ns.sub(string_len - (Z_STRLEN_P(return_value) + suffix_len), Z_STRLEN_P(return_value));
+        if (ns_base.taintedSize() &&
+            ns_base.length() == Z_STRLEN_P(return_value))
+        {
+            Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
+            OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns_base));
+        }
     }
 }
