@@ -73,14 +73,13 @@ using taint::NodeSequence;
 #define OPENRASP_T(offset) (*EX_TMP_VAR(execute_data, offset))
 #define OPENRASP_CV(i) (*EX_CV_NUM(execute_data, i))
 #define OPENRASP_CV_OF(i) (*EX_CV_NUM(EG(current_execute_data), i))
-#define OPENRASP_PZVAL_LOCK(z) Z_ADDREF_P((z))
 #else
 #define OPENRASP_T(offset) (*(temp_variable *)((char *)execute_data->Ts + offset))
 #define OPENRASP_CV(i) (EG(current_execute_data)->CVs[i])
 #define OPENRASP_CV_OF(i) (EG(current_execute_data)->CVs[i])
-#define OPENRASP_PZVAL_LOCK(z, f) taint_pzval_lock_func(z, f);
 #endif
 
+#define OPENRASP_PZVAL_LOCK(z) Z_ADDREF_P((z))
 #define OPENRASP_TS(offset) (*(temp_variable *)((char *)Ts + offset))
 #define OPENRASP_PZVAL_UNLOCK(z, f) openrasp_pzval_unlock_func(z, f, 1)
 #define OPENRASP_PZVAL_UNLOCK_FREE(z) openrasp_pzval_unlock_free_func(z)

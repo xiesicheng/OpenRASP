@@ -1,11 +1,12 @@
 --TEST--
-hook str_pad
+hook str_pad pad_string "ABC"
 --SKIPIF--
 <?php
 include(__DIR__.'/../skipif.inc');
 ?>
 --INI--
 openrasp.root_dir=/tmp/openrasp
+openrasp.taint_enable=1
 --GET--
 a=openrasp&b=test
 --FILE--
