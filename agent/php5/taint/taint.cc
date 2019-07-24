@@ -2259,14 +2259,14 @@ int openrasp_assign_ref_handler(ZEND_OPCODE_HANDLER_ARGS)
     {
         if (UNEXPECTED(OPENRASP_T(opline->op1.var).var.ptr_ptr == &OPENRASP_T(opline->op1.var).var.ptr))
         {
-            zend_error_noreturn(E_ERROR, "Cannot assign by reference to overloaded object");
+            zend_error(E_ERROR, "Cannot assign by reference to overloaded object");
         }
     }
 
     if ((variable_type == IS_VAR && UNEXPECTED(variable_ptr_ptr == NULL)) ||
         (value_type == IS_VAR && UNEXPECTED(value_ptr_ptr == NULL)))
     {
-        zend_error_noreturn(E_ERROR, "Cannot create references to/from string offsets nor overloaded objects");
+        zend_error(E_ERROR, "Cannot create references to/from string offsets nor overloaded objects");
     }
     else if ((variable_type == IS_VAR && UNEXPECTED(*variable_ptr_ptr == &EG(error_zval))) ||
              (value_type == IS_VAR && UNEXPECTED(*value_ptr_ptr == &EG(error_zval))))
@@ -2660,7 +2660,7 @@ int openrasp_send_ref_handler(ZEND_OPCODE_HANDLER_ARGS)
 
     if (IS_VAR == op1_type && UNEXPECTED(varptr_ptr == NULL))
     {
-        zend_error_noreturn(E_ERROR, "Only variables can be passed by reference");
+        zend_error(E_ERROR, "Only variables can be passed by reference");
     }
 
     if (IS_VAR == op1_type && UNEXPECTED(*varptr_ptr == &EG(error_zval)))

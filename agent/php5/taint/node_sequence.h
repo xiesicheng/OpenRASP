@@ -30,7 +30,7 @@ public:
   NodeSequence &append(size_t lengthUntainted);
   NodeSequence &erase(size_t pos, size_t len = npos);
   NodeSequence sub(size_t pos, size_t len = npos);
-  NodeSequence read(std::function<void(const TaintNode &node)> handler) const;
+  void read(std::function<void(const TaintNode &node)> handler) const;
   std::string dump() const;
 };
 } // namespace taint

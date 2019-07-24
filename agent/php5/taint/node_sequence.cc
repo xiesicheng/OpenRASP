@@ -147,7 +147,7 @@ NodeSequence NodeSequence::sub(size_t pos, size_t len)
     return res;
 }
 
-NodeSequence NodeSequence::read(std::function<void(const TaintNode &node)> handler) const
+void NodeSequence::read(std::function<void(const TaintNode &node)> handler) const
 {
     for (const TaintNode &taintNode : sequence)
     {
