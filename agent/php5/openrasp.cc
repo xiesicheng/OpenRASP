@@ -293,6 +293,15 @@ PHP_RINIT_FUNCTION(openrasp)
         {
             zval *http_global_get = fetch_http_globals(TRACK_VARS_GET TSRMLS_CC);
             openrasp_taint_mark_strings(http_global_get, "$_GET" TSRMLS_CC);
+            zval *http_global_post = fetch_http_globals(TRACK_VARS_POST TSRMLS_CC);
+            openrasp_taint_mark_strings(http_global_post, "$_POST" TSRMLS_CC);
+            zval *http_global_cookie = fetch_http_globals(TRACK_VARS_COOKIE TSRMLS_CC);
+            openrasp_taint_mark_strings(http_global_cookie, "$_COOKIE" TSRMLS_CC);
+            zval *http_global_server = fetch_http_globals(TRACK_VARS_SERVER TSRMLS_CC);
+            openrasp_taint_mark_strings(http_global_server, "$_SERVER" TSRMLS_CC,
+                                        [](char *key) {
+                                            return convert_to_header_key(key, strlen(key)).empty();
+                                        });
         }
 
 #ifdef HAVE_OPENRASP_REMOTE_MANAGER

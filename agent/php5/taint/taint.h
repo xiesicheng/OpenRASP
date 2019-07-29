@@ -143,7 +143,7 @@ typedef struct _openrasp_free_op
 
 void str_unchanege_taint(zval *src, zval *dest TSRMLS_DC);
 void openrasp_taint_deep_copy(zval *source, zval *target TSRMLS_DC);
-void openrasp_taint_mark_strings(zval *symbol_table, std::string varsSource TSRMLS_DC);
+void openrasp_taint_mark_strings(zval *symbol_table, std::string varsSource TSRMLS_DC, std::function<bool(char *key)> filter = nullptr);
 int openrasp_concat_handler(ZEND_OPCODE_HANDLER_ARGS);
 int openrasp_assign_concat_handler(ZEND_OPCODE_HANDLER_ARGS);
 int openrasp_add_char_handler(ZEND_OPCODE_HANDLER_ARGS);

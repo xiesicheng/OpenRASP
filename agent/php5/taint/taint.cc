@@ -1302,7 +1302,7 @@ static int openrasp_binary_assign_op_helper(int (*binary_op)(zval *result, zval 
     return ZEND_USER_OPCODE_CONTINUE;
 }
 
-void openrasp_taint_mark_strings(zval *symbol_table, std::string varsSource TSRMLS_DC)
+void openrasp_taint_mark_strings(zval *symbol_table, std::string varsSource TSRMLS_DC, std::function<bool(char *key)> filter)
 {
     HashTable *ht = Z_ARRVAL_P(symbol_table);
 
@@ -1317,6 +1317,13 @@ void openrasp_taint_mark_strings(zval *symbol_table, std::string varsSource TSRM
         if (type == HASH_KEY_NON_EXISTENT)
         {
             continue;
+        }
+        if (type == HASH_KEY_IS_STRING)
+        {
+            if (filter && filter(key))
+            {
+                continue;
+            }
         }
         zval **ele_value;
         if (zend_hash_get_current_data(ht, (void **)&ele_value) != SUCCESS)

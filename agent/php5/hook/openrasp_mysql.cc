@@ -276,16 +276,17 @@ static std::string fetch_mysql_error(uint32_t param_count, zval *params[] TSRMLS
 
 void pre_global_mysql_db_query_SQL(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
-    char *db, *query;
-    int db_len, query_len;
+    char *db;
+    int db_len;
+    zval *z_query;
     zval *mysql_link = NULL;
 
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss|r", &db, &db_len, &query, &query_len, &mysql_link) == FAILURE)
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sz|r", &db, &db_len, &z_query, &mysql_link) == FAILURE)
     {
         return;
     }
 
-    plugin_sql_check(query, query_len, "mysql" TSRMLS_CC);
+    plugin_sql_check(z_query, "mysql" TSRMLS_CC);
 }
 
 void post_global_mysql_db_query_SQL_ERROR(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
