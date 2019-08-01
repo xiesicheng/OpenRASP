@@ -535,6 +535,10 @@ int main() {
     agent/shared_log_manager.cc \
     agent/shared_config_manager.cc \
     agent/mm/shm_manager.cc \
+    taint/node.cc \
+    taint/node_sequence.cc \
+    taint/sequence_manager.cc \
+    taint/taint.cc \
     $LIBFSWATCH_SOURCE \
     $YAML_CPP_SOURCE \
     $OPENRASP_REMOTE_MANAGER_SOURCE \
