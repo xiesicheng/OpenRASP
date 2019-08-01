@@ -19,13 +19,16 @@ using taint::NodeSequence;
 #endif
 
 #ifndef MAKE_REAL_ZVAL_PTR
-#define MAKE_REAL_ZVAL_PTR(val)       \
-    do                                \
-    {                                 \
-        zval *_tmp;                   \
-        ALLOC_ZVAL(_tmp);             \
-        INIT_PZVAL_COPY(_tmp, (val)); \
-        (val) = _tmp;                 \
+#define MAKE_REAL_ZVAL_PTR(val)         \
+    do                                  \
+    {                                   \
+        zval *_tmp;                     \
+        ALLOC_ZVAL(_tmp);               \
+        _tmp->value = (val)->value;     \
+        Z_TYPE_P(_tmp) = Z_TYPE_P(val); \
+        Z_SET_REFCOUNT_P(_tmp, 1);      \
+        Z_UNSET_ISREF_P(_tmp);          \
+        val = _tmp;                     \
     } while (0)
 #endif
 
@@ -47,6 +50,7 @@ using taint::NodeSequence;
 #define OPENRASP_AI_SET_PTR(ai, val) \
     (ai).ptr = (val);                \
     (ai).ptr_ptr = &((ai).ptr);
+#define OPENRASP_INCLUDE_OR_EVAL_TYPE(n) (Z_LVAL(n->op2.u.constant))
 #else
 #define OPENRASP_OP1_TYPE(n) ((n)->op1_type)
 #define OPENRASP_OP2_TYPE(n) ((n)->op2_type)
@@ -67,6 +71,7 @@ using taint::NodeSequence;
         __t->var.ptr = (val);             \
         __t->var.ptr_ptr = &__t->var.ptr; \
     } while (0)
+#define OPENRASP_INCLUDE_OR_EVAL_TYPE(n) (n->extended_value)
 #endif
 
 #if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 5)
@@ -97,13 +102,13 @@ using taint::NodeSequence;
         (ai).ptr = NULL;            \
     }
 
-#define OPENRASP_AI_SET_PTR(t, val)       \
-    do                                    \
-    {                                     \
-        temp_variable *__t = (t);         \
-        __t->var.ptr = (val);             \
-        __t->var.ptr_ptr = &__t->var.ptr; \
-    } while (0)
+// #define OPENRASP_AI_SET_PTR(t, val)       \
+//     do                                    \
+//     {                                     \
+//         temp_variable *__t = (t);         \
+//         __t->var.ptr = (val);             \
+//         __t->var.ptr_ptr = &__t->var.ptr; \
+//     } while (0)
 
 #define OPENRASP_FREE_OP(should_free)                                   \
     if (should_free.var)                                                \
@@ -141,9 +146,11 @@ int openrasp_add_var_handler(ZEND_OPCODE_HANDLER_ARGS);
 int openrasp_add_string_handler(ZEND_OPCODE_HANDLER_ARGS);
 int openrasp_assign_ref_handler(ZEND_OPCODE_HANDLER_ARGS);
 int openrasp_qm_assign_handler(ZEND_OPCODE_HANDLER_ARGS);
-int openrasp_qm_assign_var_handler(ZEND_OPCODE_HANDLER_ARGS);
 int openrasp_send_var_handler(ZEND_OPCODE_HANDLER_ARGS);
 int openrasp_send_ref_handler(ZEND_OPCODE_HANDLER_ARGS);
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 4)
+int openrasp_qm_assign_var_handler(ZEND_OPCODE_HANDLER_ARGS);
+#endif
 
 void openrasp_taint_mark(zval *zv, NodeSequence *ptr TSRMLS_DC);
 bool openrasp_taint_possible(zval *zv);

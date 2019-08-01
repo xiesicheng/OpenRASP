@@ -13,6 +13,7 @@ using taint::TaintNode;
 static void openrasp_pzval_unlock_func(zval *z, openrasp_free_op *should_free, int unref);
 static void openrasp_pzval_unlock_free_func(zval *z);
 static void openrasp_pzval_lock_func(zval *z, openrasp_free_op *should_free);
+static void openrasp_get_cv_address(zend_compiled_variable *cv, zval ***ptr, temp_variable *Ts TSRMLS_DC);
 static int openrasp_binary_assign_op_helper(int (*binary_op)(zval *result, zval *op1, zval *op2 TSRMLS_DC), ZEND_OPCODE_HANDLER_ARGS);
 static int openrasp_binary_assign_op_obj_helper(int (*binary_op)(zval *result, zval *op1, zval *op2 TSRMLS_DC), ZEND_OPCODE_HANDLER_ARGS);
 static zval **openrasp_get_obj_zval_ptr_ptr_unused(TSRMLS_D);
@@ -1436,6 +1437,14 @@ static void openrasp_pzval_lock_func(zval *z, openrasp_free_op *should_free)
     }
 }
 
+static void openrasp_get_cv_address(zend_compiled_variable *cv, zval ***ptr, temp_variable *Ts TSRMLS_DC)
+{
+    zval *new_zval = &EG(uninitialized_zval);
+
+    Z_ADDREF_P(new_zval);
+    zend_hash_quick_update(EG(active_symbol_table), cv->name, cv->name_len + 1, cv->hash_value, &new_zval, sizeof(zval *), (void **)ptr);
+}
+
 static zval **openrasp_fetch_dimension_address_inner(HashTable *ht, zval *dim, int dim_type, int type TSRMLS_DC)
 {
     zval **retval;
@@ -2190,7 +2199,11 @@ int openrasp_assign_ref_handler(ZEND_OPCODE_HANDLER_ARGS)
         break;
     case IS_CV:
         value_type = IS_CV;
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION < 4)
+        value_ptr_ptr = openrasp_get_zval_ptr_ptr_cv(&opline->op2, execute_data->Ts, BP_VAR_W TSRMLS_CC);
+#else
         value_ptr_ptr = openrasp_get_zval_ptr_ptr_cv(opline->op2.var, BP_VAR_W TSRMLS_CC);
+#endif
         break;
     }
     if (!value_ptr_ptr ||
@@ -2208,7 +2221,11 @@ int openrasp_assign_ref_handler(ZEND_OPCODE_HANDLER_ARGS)
         if (value_ptr_ptr &&
             !Z_ISREF_PP(value_ptr_ptr) &&
             opline->extended_value == ZEND_RETURNS_FUNCTION &&
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION < 4)
+            !OPENRASP_T(opline->op2.u.var).var.fcall_returned_reference)
+#else
             !OPENRASP_T(opline->op2.var).var.fcall_returned_reference)
+#endif
         {
             if (free_op2.var == NULL)
             {
@@ -2246,13 +2263,21 @@ int openrasp_assign_ref_handler(ZEND_OPCODE_HANDLER_ARGS)
         break;
     case IS_CV:
         variable_type = IS_CV;
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION < 4)
+        variable_ptr_ptr = openrasp_get_zval_ptr_ptr_cv(&opline->op1, execute_data->Ts, BP_VAR_W TSRMLS_CC);
+#else
         variable_ptr_ptr = openrasp_get_zval_ptr_ptr_cv(opline->op1.var, BP_VAR_W TSRMLS_CC);
+#endif
         break;
     }
 
     if (variable_type == IS_VAR)
     {
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION < 4)
+        if (UNEXPECTED(OPENRASP_T(opline->op1.u.var).var.ptr_ptr == &OPENRASP_T(opline->op1.u.var).var.ptr))
+#else
         if (UNEXPECTED(OPENRASP_T(opline->op1.var).var.ptr_ptr == &OPENRASP_T(opline->op1.var).var.ptr))
+#endif
         {
             zend_error(E_ERROR, "Cannot assign by reference to overloaded object");
         }
@@ -2280,7 +2305,11 @@ int openrasp_assign_ref_handler(ZEND_OPCODE_HANDLER_ARGS)
     if (OPENRASP_RETURN_VALUE_USED(opline))
     {
         OPENRASP_PZVAL_LOCK(*variable_ptr_ptr);
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION < 4)
+        OPENRASP_AI_SET_PTR(OPENRASP_T(opline->result.u.var).var, *variable_ptr_ptr);
+#else
         OPENRASP_AI_SET_PTR(&OPENRASP_T(opline->result.var), *variable_ptr_ptr);
+#endif
     }
     if (variable_type == IS_VAR)
     {
@@ -2424,6 +2453,7 @@ int openrasp_qm_assign_handler(ZEND_OPCODE_HANDLER_ARGS)
     return ZEND_USER_OPCODE_CONTINUE;
 }
 
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION >= 4)
 int openrasp_qm_assign_var_handler(ZEND_OPCODE_HANDLER_ARGS)
 {
     zend_op *opline = execute_data->opline;
@@ -2495,6 +2525,7 @@ int openrasp_qm_assign_var_handler(ZEND_OPCODE_HANDLER_ARGS)
     execute_data->opline++;
     return ZEND_USER_OPCODE_CONTINUE;
 }
+#endif
 
 int openrasp_send_var_handler(ZEND_OPCODE_HANDLER_ARGS)
 {
