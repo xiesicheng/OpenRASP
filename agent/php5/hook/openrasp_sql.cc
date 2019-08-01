@@ -98,10 +98,10 @@ void plugin_sql_check(zval *z_query, char *server TSRMLS_DC)
             auto params = v8::Object::New(isolate);
             params->Set(openrasp::NewV8String(isolate, "query"), openrasp::NewV8String(isolate, query, query_len));
             params->Set(openrasp::NewV8String(isolate, "server"), openrasp::NewV8String(isolate, server));
-            if (OPENRASP_TAINT_POSSIBLE(z_query))
+            if (openrasp_taint_possible(z_query))
             {
                 auto tainted_arr = v8::Array::New(isolate);
-                taint::NodeSequence ns = OPENRASP_TAINT_SEQUENCE(z_query);
+                taint::NodeSequence ns = openrasp_taint_sequence(z_query);
                 int index = 0;
                 ns.read([&](const taint::TaintNode &node) {
                     auto taint_result = v8::Object::New(isolate);

@@ -132,8 +132,7 @@ OPENRASP_HOOK_FUNCTION(sprintf, taint)
     {
         if (ns.taintedSize() && IS_STRING == Z_TYPE_P(return_value) && Z_STRLEN_P(return_value) && ns.length() == Z_STRLEN_P(return_value))
         {
-            Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
-            OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns));
+            openrasp_taint_mark(return_value, new NodeSequence(ns) TSRMLS_CC);
         }
     }
 }
@@ -160,8 +159,7 @@ OPENRASP_HOOK_FUNCTION(vsprintf, taint)
     {
         if (ns.taintedSize() && IS_STRING == Z_TYPE_P(return_value) && Z_STRLEN_P(return_value) && ns.length() == Z_STRLEN_P(return_value))
         {
-            Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
-            OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns));
+            openrasp_taint_mark(return_value, new NodeSequence(ns) TSRMLS_CC);
         }
     }
 }
@@ -245,7 +243,7 @@ static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int f
     convert_to_string_ex(args[format_offset]);
     if (Z_TYPE_PP(args[format_offset]) == IS_STRING)
     {
-        ns = OPENRASP_TAINT_SEQUENCE(*args[format_offset]);
+        ns = openrasp_taint_sequence(*args[format_offset]);
     }
     else
     {
@@ -385,9 +383,9 @@ static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int f
                 inpos++;
             }
             NodeSequence item_ns;
-            if (Z_TYPE_P(*(args[argnum])) == IS_STRING && OPENRASP_TAINT_POSSIBLE(*(args[argnum])))
+            if (openrasp_taint_possible(*(args[argnum])))
             {
-                item_ns = OPENRASP_TAINT_SEQUENCE(*(args[argnum]));
+                item_ns = openrasp_taint_sequence(*(args[argnum]));
             }
             /* now we expect to find a type specifier */
             if (multiuse)
@@ -519,9 +517,9 @@ void post_global_explode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 
         if (Z_TYPE_P(zstr) == IS_STRING && Z_STRLEN_P(zstr) &&
             Z_TYPE_P(zdelim) == IS_STRING && Z_STRLEN_P(zdelim) &&
-            OPENRASP_TAINT_POSSIBLE(zstr))
+            openrasp_taint_possible(zstr))
         {
-            NodeSequence ns = OPENRASP_TAINT_SEQUENCE(zstr);
+            NodeSequence ns = openrasp_taint_sequence(zstr);
             std::string str(Z_STRVAL_P(zstr), Z_STRLEN_P(zstr));
             std::string delim(Z_STRVAL_P(zdelim), Z_STRLEN_P(zdelim));
             size_t start = 0;
@@ -547,13 +545,12 @@ void post_global_explode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
                 }
                 if (IS_STRING == Z_TYPE_PP(ele_value) && type == HASH_KEY_IS_LONG)
                 {
-                    Z_STRVAL_PP(ele_value) = (char *)erealloc(Z_STRVAL_PP(ele_value), Z_STRLEN_PP(ele_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
                     if (idx < size - 1)
                     {
                         found = str.find(delim, start);
                         if (found != std::string::npos)
                         {
-                            OPENRASP_TAINT_MARK(*ele_value, new NodeSequence(ns.sub(start, found - start)));
+                            openrasp_taint_mark(*ele_value, new NodeSequence(ns.sub(start, found - start)) TSRMLS_CC);
                             start = found + delim.length();
                         }
                     }
@@ -561,14 +558,14 @@ void post_global_explode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
                     {
                         if (limit > 0)
                         {
-                            OPENRASP_TAINT_MARK(*ele_value, new NodeSequence(ns.sub(start)));
+                            openrasp_taint_mark(*ele_value, new NodeSequence(ns.sub(start)) TSRMLS_CC);
                         }
                         else
                         {
                             found = str.find(delim, start);
                             if (found != std::string::npos)
                             {
-                                OPENRASP_TAINT_MARK(*ele_value, new NodeSequence(ns.sub(start, found - start)));
+                                openrasp_taint_mark(*ele_value, new NodeSequence(ns.sub(start, found - start)) TSRMLS_CC);
                             }
                         }
                     }
@@ -640,7 +637,7 @@ void post_global_implode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
             switch ((*tmp)->type)
             {
             case IS_STRING:
-                ns.append(OPENRASP_TAINT_SEQUENCE(*tmp));
+                ns.append(openrasp_taint_sequence(*tmp));
                 break;
 
             case IS_LONG:
@@ -675,7 +672,7 @@ void post_global_implode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
                 int copy;
                 zval expr;
                 zend_make_printable_zval(*tmp, &expr, &copy);
-                ns.append(OPENRASP_TAINT_SEQUENCE(&expr));
+                ns.append(openrasp_taint_sequence(&expr));
                 if (copy)
                 {
                     zval_dtor(&expr);
@@ -687,14 +684,14 @@ void post_global_implode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
                 tmp_val = **tmp;
                 zval_copy_ctor(&tmp_val);
                 convert_to_string(&tmp_val);
-                ns.append(OPENRASP_TAINT_SEQUENCE(&tmp_val));
+                ns.append(openrasp_taint_sequence(&tmp_val));
                 zval_dtor(&tmp_val);
                 break;
             }
 
             if (++i != numelems)
             {
-                ns.append(OPENRASP_TAINT_SEQUENCE(delim));
+                ns.append(openrasp_taint_sequence(delim));
             }
             zend_hash_move_forward_ex(Z_ARRVAL_P(arr), &pos);
         }
@@ -707,8 +704,7 @@ void post_global_implode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 
     if (ns.taintedSize() && IS_STRING == Z_TYPE_P(return_value) && Z_STRLEN_P(return_value) && ns.length() == Z_STRLEN_P(return_value))
     {
-        Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
-        OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns));
+        openrasp_taint_mark(return_value, new NodeSequence(ns) TSRMLS_CC);
     }
 }
 
@@ -769,11 +765,11 @@ static inline int php_charmask(unsigned char *input, int len, char *mask TSRMLS_
 
 void trim_taint(zval *zstr, char *what, int what_len, zval *return_value, int mode TSRMLS_DC)
 {
-    if (Z_TYPE_P(zstr) == IS_STRING && Z_STRLEN_P(zstr) && OPENRASP_TAINT_POSSIBLE(zstr))
+    if (openrasp_taint_possible(zstr))
     {
         char *c = Z_STRVAL_P(zstr);
         int len = Z_STRLEN_P(zstr);
-        NodeSequence ns = OPENRASP_TAINT_SEQUENCE(zstr);
+        NodeSequence ns = openrasp_taint_sequence(zstr);
         register int i;
         char mask[256];
 
@@ -821,8 +817,7 @@ void trim_taint(zval *zstr, char *what, int what_len, zval *return_value, int mo
             Z_STRLEN_P(return_value) &&
             ns.length() == Z_STRLEN_P(return_value))
         {
-            Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
-            OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns));
+            openrasp_taint_mark(return_value, new NodeSequence(ns) TSRMLS_CC);
         }
     }
 }
@@ -893,7 +888,7 @@ static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval **
 
     /* Make sure we're dealing with strings. */
     convert_to_string_ex(subject);
-    NodeSequence ns_subject = OPENRASP_TAINT_SEQUENCE(*subject);
+    NodeSequence ns_subject = openrasp_taint_sequence(*subject);
     std::string str_subject(Z_STRVAL_PP(subject), Z_STRLEN_PP(subject));
     if (Z_STRLEN_PP(subject) == 0)
     {
@@ -914,7 +909,7 @@ static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval **
         else
         {
             /* Set replacement value to the passed one */
-            ns_replace = OPENRASP_TAINT_SEQUENCE(replace);
+            ns_replace = openrasp_taint_sequence(replace);
             str_replace = std::string(Z_STRVAL_P(replace), Z_STRLEN_P(replace));
         }
 
@@ -922,7 +917,7 @@ static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval **
         while (zend_hash_get_current_data(Z_ARRVAL_P(search), (void **)&search_entry) == SUCCESS)
         {
             std::string str_search_entry = std::string(Z_STRVAL_PP(search_entry), Z_STRLEN_PP(search_entry));
-            NodeSequence ns_search_entry = OPENRASP_TAINT_SEQUENCE(*search_entry);
+            NodeSequence ns_search_entry = openrasp_taint_sequence(*search_entry);
             /* Make sure we're dealing with strings. */
             SEPARATE_ZVAL(search_entry);
             convert_to_string(*search_entry);
@@ -944,7 +939,7 @@ static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval **
                 {
                     /* Make sure we're dealing with strings. */
                     convert_to_string_ex(replace_entry);
-                    ns_replace = OPENRASP_TAINT_SEQUENCE(*replace_entry);
+                    ns_replace = openrasp_taint_sequence(*replace_entry);
                     str_replace = std::string(Z_STRVAL_PP(replace_entry), Z_STRLEN_PP(replace_entry));
                     zend_hash_move_forward(Z_ARRVAL_P(replace));
                 }
@@ -981,8 +976,7 @@ static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval **
             if (ns_subject.taintedSize() && Z_TYPE_P(result) == IS_STRING && Z_STRLEN_P(result) &&
                 ns_subject.length() == Z_STRLEN_P(result))
             {
-                Z_STRVAL_P(result) = (char *)erealloc(Z_STRVAL_P(result), Z_STRLEN_P(result) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
-                OPENRASP_TAINT_MARK(result, new NodeSequence(ns_subject));
+                openrasp_taint_mark(result, new NodeSequence(ns_subject) TSRMLS_CC);
             }
             zend_hash_move_forward(Z_ARRVAL_P(search));
         }
@@ -990,8 +984,8 @@ static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval **
     else
     {
         std::string str_search = std::string(Z_STRVAL_P(search), Z_STRLEN_P(search));
-        NodeSequence ns_search = OPENRASP_TAINT_SEQUENCE(search);
-        ns_replace = OPENRASP_TAINT_SEQUENCE(replace);
+        NodeSequence ns_search = openrasp_taint_sequence(search);
+        ns_replace = openrasp_taint_sequence(replace);
         str_replace = std::string(Z_STRVAL_P(replace), Z_STRLEN_P(replace));
         size_t found = 0;
         do
@@ -1019,8 +1013,7 @@ static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval **
         if (ns_subject.taintedSize() && Z_TYPE_P(result) == IS_STRING && Z_STRLEN_P(result) &&
             ns_subject.length() == Z_STRLEN_P(result))
         {
-            Z_STRVAL_P(result) = (char *)erealloc(Z_STRVAL_P(result), Z_STRLEN_P(result) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
-            OPENRASP_TAINT_MARK(result, new NodeSequence(ns_subject));
+            openrasp_taint_mark(result, new NodeSequence(ns_subject) TSRMLS_CC);
         }
     }
 }
@@ -1143,7 +1136,7 @@ void post_global_str_pad_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
             {
                 return;
             }
-            ns_pad = OPENRASP_TAINT_SEQUENCE(z_pad_str);
+            ns_pad = openrasp_taint_sequence(z_pad_str);
         }
     }
 
@@ -1164,7 +1157,7 @@ void post_global_str_pad_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
         return;
     }
 
-    NodeSequence ns = OPENRASP_TAINT_SEQUENCE(z_input);
+    NodeSequence ns = openrasp_taint_sequence(z_input);
     switch (pad_type_val)
     {
     case STR_PAD_RIGHT:
@@ -1204,8 +1197,7 @@ void post_global_str_pad_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
         Z_STRLEN_P(return_value) &&
         ns.length() == Z_STRLEN_P(return_value))
     {
-        Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
-        OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns));
+        openrasp_taint_mark(return_value, new NodeSequence(ns) TSRMLS_CC);
     }
 }
 
@@ -1261,9 +1253,9 @@ void post_global_strstr_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
         return;
     }
 
-    if (Z_TYPE_P(z_haystack) == IS_STRING && OPENRASP_TAINT_POSSIBLE(z_haystack))
+    if (openrasp_taint_possible(z_haystack))
     {
-        NodeSequence ns = OPENRASP_TAINT_SEQUENCE(z_haystack);
+        NodeSequence ns = openrasp_taint_sequence(z_haystack);
         char *haystack = Z_STRVAL_P(z_haystack);
         int haystack_len = Z_STRLEN_P(z_haystack);
         if (Z_TYPE_P(needle) == IS_STRING)
@@ -1300,8 +1292,7 @@ void post_global_strstr_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
         if (ns.taintedSize() &&
             ns.length() == Z_STRLEN_P(return_value))
         {
-            Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
-            OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns));
+            openrasp_taint_mark(return_value, new NodeSequence(ns) TSRMLS_CC);
         }
     }
 }
@@ -1321,10 +1312,10 @@ void post_global_substr_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     {
         return;
     }
-    if (Z_TYPE_P(z_str) == IS_STRING && OPENRASP_TAINT_POSSIBLE(z_str))
+    if (openrasp_taint_possible(z_str))
     {
         int str_len = Z_STRLEN_P(z_str);
-        NodeSequence ns = OPENRASP_TAINT_SEQUENCE(z_str);
+        NodeSequence ns = openrasp_taint_sequence(z_str);
         if (argc > 2)
         {
             if ((l < 0 && -l > str_len))
@@ -1393,8 +1384,7 @@ void post_global_substr_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
         if (ns_sub.taintedSize() &&
             ns_sub.length() == Z_STRLEN_P(return_value))
         {
-            Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
-            OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns_sub));
+            openrasp_taint_mark(return_value, new NodeSequence(ns_sub) TSRMLS_CC);
         }
     }
 }
@@ -1418,9 +1408,9 @@ void post_global_stristr_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
         return;
     }
 
-    if (Z_TYPE_P(z_haystack) == IS_STRING && OPENRASP_TAINT_POSSIBLE(z_haystack))
+    if (openrasp_taint_possible(z_haystack))
     {
-        NodeSequence ns = OPENRASP_TAINT_SEQUENCE(z_haystack);
+        NodeSequence ns = openrasp_taint_sequence(z_haystack);
         char *haystack = Z_STRVAL_P(z_haystack);
         int haystack_len = Z_STRLEN_P(z_haystack);
         char *haystack_dup = estrndup(haystack, haystack_len);
@@ -1462,8 +1452,7 @@ void post_global_stristr_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
         if (ns.taintedSize() &&
             ns.length() == Z_STRLEN_P(return_value))
         {
-            Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
-            OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns));
+            openrasp_taint_mark(return_value, new NodeSequence(ns) TSRMLS_CC);
         }
         efree(haystack_dup);
     }
@@ -1483,15 +1472,14 @@ void post_global_dirname_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     {
         return;
     }
-    if (Z_TYPE_P(z_str) == IS_STRING && OPENRASP_TAINT_POSSIBLE(z_str))
+    if (openrasp_taint_possible(z_str))
     {
-        NodeSequence ns = OPENRASP_TAINT_SEQUENCE(z_str);
+        NodeSequence ns = openrasp_taint_sequence(z_str);
         ns.erase(Z_STRLEN_P(return_value));
         if (ns.taintedSize() &&
             ns.length() == Z_STRLEN_P(return_value))
         {
-            Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
-            OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns));
+            openrasp_taint_mark(return_value, new NodeSequence(ns) TSRMLS_CC);
         }
     }
 }
@@ -1510,17 +1498,16 @@ void post_global_basename_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     {
         return;
     }
-    if (Z_TYPE_P(z_string) == IS_STRING && OPENRASP_TAINT_POSSIBLE(z_string))
+    if (openrasp_taint_possible(z_string))
     {
-        NodeSequence ns = OPENRASP_TAINT_SEQUENCE(z_string);
+        NodeSequence ns = openrasp_taint_sequence(z_string);
         int string_len = Z_STRLEN_P(z_string);
         int suffix_len = (nullptr != z_suffix && Z_TYPE_P(z_suffix) == IS_STRING) ? Z_STRLEN_P(z_suffix) : 0;
         NodeSequence ns_base = ns.sub(string_len - (Z_STRLEN_P(return_value) + suffix_len), Z_STRLEN_P(return_value));
         if (ns_base.taintedSize() &&
             ns_base.length() == Z_STRLEN_P(return_value))
         {
-            Z_STRVAL_P(return_value) = (char *)erealloc(Z_STRVAL_P(return_value), Z_STRLEN_P(return_value) + 1 + OPENRASP_TAINT_SUFFIX_LENGTH);
-            OPENRASP_TAINT_MARK(return_value, new NodeSequence(ns_base));
+            openrasp_taint_mark(return_value, new NodeSequence(ns_base) TSRMLS_CC);
         }
     }
 }
