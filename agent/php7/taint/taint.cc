@@ -516,6 +516,17 @@ NodeSequence openrasp_taint_sequence(zval *zv)
                : NodeSequence(Z_TYPE_P(zv) == IS_STRING ? Z_STRLEN_P(zv) : 0);
 }
 
+void str_unchanege_taint(zval *src, zval *dest)
+{
+    if (Z_TYPE_P(src) == IS_STRING &&
+        openrasp_taint_possible(src) &&
+        IS_STRING == Z_TYPE_P(dest) &&
+        Z_STRLEN_P(src) == Z_STRLEN_P(dest))
+    {
+        openrasp_taint_mark(dest, new NodeSequence(openrasp_taint_sequence(src)));
+    }
+}
+
 void openrasp_taint_mark_strings(zval *symbol_table, std::string varsSource, std::function<bool(char *key)> filter)
 {
     if (Z_TYPE_P(symbol_table) != IS_ARRAY)

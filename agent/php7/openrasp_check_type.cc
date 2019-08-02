@@ -54,6 +54,7 @@ CheckTypeTransfer::CheckTypeTransfer()
   insert(EVAL, "eval");
   insert(DELETE_FILE, "deleteFile");
   insert(MONGO, "mongo");
+  insert(TAINT, "taint");
 }
 
 std::string CheckTypeTransfer::type_to_name(OpenRASPCheckType type) const

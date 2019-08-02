@@ -25,7 +25,7 @@ using taint::NodeSequence;
 
 typedef zval *openrasp_free_op;
 
-// void str_unchanege_taint(zval *src, zval *dest);
+void str_unchanege_taint(zval *src, zval *dest);
 // void openrasp_taint_deep_copy(zval *source, zval *target);
 void openrasp_taint_mark_strings(zval *symbol_table, std::string varsSource, std::function<bool(char *key)> filter = nullptr);
 int openrasp_concat_handler(zend_execute_data *execute_data);

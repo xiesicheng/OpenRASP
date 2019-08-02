@@ -539,6 +539,7 @@ int main() {
     taint/node_sequence.cc \
     taint/sequence_manager.cc \
     taint/taint.cc \
+    taint/hook.cc \
     $LIBFSWATCH_SOURCE \
     $YAML_CPP_SOURCE \
     $OPENRASP_REMOTE_MANAGER_SOURCE \

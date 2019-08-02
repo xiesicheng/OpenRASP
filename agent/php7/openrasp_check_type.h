@@ -51,6 +51,7 @@ typedef enum check_type_t
   REQUEST,
   REQUEST_END,
   MONGO,
+  TAINT,
   ALL_TYPE
 } OpenRASPCheckType;
 
