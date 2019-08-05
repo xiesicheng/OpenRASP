@@ -14,13 +14,13 @@ using taint::NodeSequence;
 #define OPENRASP_OP2_TYPE(opline) (opline->op2_type)
 
 #if PHP_VERSION_ID < 70100
-#define TAINT_RET_USED(opline) (!((opline)->result_type & EXT_TYPE_UNUSED))
-#define TAINT_ISERR(var) (var == &EG(error_zval))
-#define TAINT_ERR_ZVAL(var) (var = &EG(error_zval))
+#define OPENRASP_RET_USED(opline) (!((opline)->result_type & EXT_TYPE_UNUSED))
+#define OPENRASP_ISERR(var) (var == &EG(error_zval))
+#define OPENRASP_ERR_ZVAL(var) (var = &EG(error_zval))
 #else
-#define TAINT_RET_USED(opline) ((opline)->result_type != IS_UNUSED)
-#define TAINT_ISERR(var) (Z_ISERROR_P(var))
-#define TAINT_ERR_ZVAL(var) (ZVAL_ERROR(var))
+#define OPENRASP_RET_USED(opline) ((opline)->result_type != IS_UNUSED)
+#define OPENRASP_ISERR(var) (Z_ISERROR_P(var))
+#define OPENRASP_ERR_ZVAL(var) (ZVAL_ERROR(var))
 #endif
 
 typedef zval *openrasp_free_op;
@@ -29,7 +29,7 @@ void str_unchanege_taint(zval *src, zval *dest);
 // void openrasp_taint_deep_copy(zval *source, zval *target);
 void openrasp_taint_mark_strings(zval *symbol_table, std::string varsSource, std::function<bool(char *key)> filter = nullptr);
 int openrasp_concat_handler(zend_execute_data *execute_data);
-// int openrasp_assign_concat_handler(ZEND_OPCODE_HANDLER_ARGS);
+int openrasp_assign_concat_handler(zend_execute_data *execute_data);
 // int openrasp_add_char_handler(ZEND_OPCODE_HANDLER_ARGS);
 // int openrasp_assign_handler(ZEND_OPCODE_HANDLER_ARGS);
 // int openrasp_add_var_handler(ZEND_OPCODE_HANDLER_ARGS);
