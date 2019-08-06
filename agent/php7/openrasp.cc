@@ -177,6 +177,7 @@ PHP_MINIT_FUNCTION(openrasp)
         zend_set_user_opcode_handler(ZEND_CONCAT, openrasp_concat_handler);
         zend_set_user_opcode_handler(ZEND_FAST_CONCAT, openrasp_concat_handler);
         zend_set_user_opcode_handler(ZEND_ASSIGN_CONCAT, openrasp_assign_concat_handler);
+        zend_set_user_opcode_handler(ZEND_ROPE_END, openrasp_repo_end_handler);
     }
 
 #ifdef HAVE_OPENRASP_REMOTE_MANAGER

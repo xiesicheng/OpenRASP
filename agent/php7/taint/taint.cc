@@ -509,11 +509,25 @@ bool openrasp_taint_possible(zval *zv)
            *((unsigned *)(Z_STRVAL_P(zv) + Z_STRLEN_P(zv) + OPENRASP_TAINT_POINTER_LENGTH + 1)) == OPENRASP_TAINT_MAGIC_POSSIBLE;
 }
 
+bool openrasp_taint_possible(zend_string *zs)
+{
+    return nullptr != zs &&
+           ZSTR_LEN(zs) &&
+           *((unsigned *)(ZSTR_VAL(zs) + ZSTR_LEN(zs) + OPENRASP_TAINT_POINTER_LENGTH + 1)) == OPENRASP_TAINT_MAGIC_POSSIBLE;
+}
+
 NodeSequence openrasp_taint_sequence(zval *zv)
 {
     return openrasp_taint_possible(zv)
                ? **((NodeSequence **)(Z_STRVAL_P(zv) + Z_STRLEN_P(zv) + 1))
                : NodeSequence(Z_TYPE_P(zv) == IS_STRING ? Z_STRLEN_P(zv) : 0);
+}
+
+NodeSequence openrasp_taint_sequence(zend_string *zs)
+{
+    return openrasp_taint_possible(zs)
+               ? **((NodeSequence **)(ZSTR_VAL(zs) + ZSTR_LEN(zs) + 1))
+               : NodeSequence(ZSTR_LEN(zs));
 }
 
 static int openrasp_binary_assign_op_helper(binary_op_type binary_op, zend_execute_data *execute_data)
@@ -991,6 +1005,50 @@ int openrasp_assign_concat_handler(zend_execute_data *execute_data)
     {
         return openrasp_binary_assign_op_obj_helper(concat_function, execute_data);
     }
+}
+
+int openrasp_repo_end_handler(zend_execute_data *execute_data)
+{
+    const zend_op *opline = execute_data->opline;
+    zval *op2, *result;
+    openrasp_free_op free_op2;
+    zend_string **rope;
+    char *target;
+    int i;
+    size_t len = 0;
+
+    rope = (zend_string **)EX_VAR(opline->op1.var);
+    op2 = openrasp_get_zval_ptr(execute_data, opline->op2_type, opline->op2, &free_op2, BP_VAR_R, 1);
+    result = EX_VAR(opline->result.var);
+
+    rope[opline->extended_value] = zval_get_string(op2);
+
+    NodeSequence ns;
+    for (i = 0; i <= opline->extended_value; i++)
+    {
+        ns.append(openrasp_taint_sequence(rope[i]));
+        len += ZSTR_LEN(rope[i]);
+    }
+
+    ZVAL_STR(result, zend_string_alloc(len, 0));
+    target = Z_STRVAL_P(result);
+
+    for (i = 0; i <= opline->extended_value; i++)
+    {
+        memcpy(target, ZSTR_VAL(rope[i]), ZSTR_LEN(rope[i]));
+        target += ZSTR_LEN(rope[i]);
+        zend_string_release(rope[i]);
+    }
+    *target = '\0';
+
+    if (ns.taintedSize() && Z_STRLEN_P(result) == ns.length())
+    {
+        openrasp_taint_mark(result, new NodeSequence(ns));
+    }
+
+    execute_data->opline++;
+
+    return ZEND_USER_OPCODE_CONTINUE;
 }
 
 PHP_FUNCTION(taint_dump)
