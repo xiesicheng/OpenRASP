@@ -23,6 +23,7 @@
  */
 POST_HOOK_FUNCTION(strval, TAINT);
 POST_HOOK_FUNCTION(explode, TAINT);
+POST_HOOK_FUNCTION(implode, TAINT);
 
 void post_global_strval_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
@@ -98,5 +99,109 @@ void post_global_explode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
             }
             ZEND_HASH_FOREACH_END();
         }
+    }
+}
+
+void post_global_implode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    if (IS_STRING != Z_TYPE_P(return_value) || Z_STRLEN_P(return_value) == 0)
+    {
+        return;
+    }
+    zval *arg1 = nullptr;
+    zval *arg2 = nullptr;
+    zval *arr = nullptr;
+    zend_string *delim = nullptr;
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "z|z", &arg1, &arg2) == FAILURE)
+    {
+        return;
+    }
+    if (arg2 == nullptr)
+    {
+        if (Z_TYPE_P(arg1) != IS_ARRAY)
+        {
+            return;
+        }
+        delim = ZSTR_EMPTY_ALLOC();
+        arr = arg1;
+    }
+    else
+    {
+        if (Z_TYPE_P(arg1) == IS_ARRAY)
+        {
+            delim = zval_get_string(arg2);
+            arr = arg1;
+        }
+        else if (Z_TYPE_P(arg2) == IS_ARRAY)
+        {
+            delim = zval_get_string(arg1);
+            arr = arg2;
+        }
+        else
+        {
+            return;
+        }
+    }
+
+    NodeSequence ns;
+    {
+        zval *tmp;
+        int numelems;
+
+        numelems = zend_hash_num_elements(Z_ARRVAL_P(arr));
+
+        if (numelems == 0)
+        {
+            return;
+        }
+        else if (numelems == 1)
+        {
+            ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(arr), tmp)
+            {
+                if (IS_STRING == Z_TYPE_P(tmp))
+                {
+                    ns.append(openrasp_taint_sequence(tmp));
+                }
+                return;
+            }
+            ZEND_HASH_FOREACH_END();
+        }
+
+        int i = 0;
+        ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(arr), tmp)
+        {
+            if (Z_TYPE_P(tmp) == IS_LONG)
+            {
+                zend_long val = Z_LVAL_P(tmp);
+
+                if (val <= 0)
+                {
+                    ns.append(1);
+                }
+                while (val)
+                {
+                    val /= 10;
+                    ns.append(1);
+                }
+            }
+            else
+            {
+                zend_string *strptr = zval_get_string(tmp);
+                ns.append(openrasp_taint_sequence(strptr));
+                zend_string_release(strptr);
+            }
+
+            if (++i != numelems)
+            {
+                ns.append(openrasp_taint_sequence(delim));
+            }
+        }
+        ZEND_HASH_FOREACH_END();
+    }
+    zend_string_release(delim);
+    if (ns.taintedSize() && IS_STRING == Z_TYPE_P(return_value) && Z_STRLEN_P(return_value) && ns.length() == Z_STRLEN_P(return_value))
+    {
+        openrasp_taint_mark(return_value, new NodeSequence(ns));
     }
 }

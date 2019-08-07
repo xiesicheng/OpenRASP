@@ -577,6 +577,11 @@ void post_global_explode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 
 void post_global_implode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
+    if (IS_STRING != Z_TYPE_P(return_value) || Z_STRLEN_P(return_value) == 0)
+    {
+        return;
+    }
+    
     zval **arg1 = NULL, **arg2 = NULL, *delim, *arr;
 
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "Z|Z", &arg1, &arg2) == FAILURE)
