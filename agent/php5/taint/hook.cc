@@ -30,7 +30,7 @@
 static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int format_offset TSRMLS_DC);
 inline static int openrasp_sprintf_getnumber(char *buffer, int *pos);
 static inline int php_charmask(unsigned char *input, int len, char *mask TSRMLS_DC);
-char *trim_taint(char *c, int len, char *what, int what_len, zval *return_value, int mode TSRMLS_DC);
+void trim_taint(char *c, int len, char *what, int what_len, zval *return_value, int mode TSRMLS_DC);
 static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval **subject, zval *result, int case_sensitivity, int *replace_count TSRMLS_DC);
 static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, int case_sensitivity, zval *origin_subject);
 static int openrasp_needle_char(zval *needle, char *target TSRMLS_DC);
@@ -581,7 +581,7 @@ void post_global_implode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     {
         return;
     }
-    
+
     zval **arg1 = NULL, **arg2 = NULL, *delim, *arr;
 
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "Z|Z", &arg1, &arg2) == FAILURE)
@@ -770,7 +770,7 @@ static inline int php_charmask(unsigned char *input, int len, char *mask TSRMLS_
 
 void trim_taint(zval *zstr, char *what, int what_len, zval *return_value, int mode TSRMLS_DC)
 {
-    if (openrasp_taint_possible(zstr))
+    if (IS_STRING == Z_TYPE_P(return_value) && Z_STRLEN_P(return_value) && openrasp_taint_possible(zstr))
     {
         char *c = Z_STRVAL_P(zstr);
         int len = Z_STRLEN_P(zstr);

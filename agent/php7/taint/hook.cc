@@ -18,12 +18,18 @@
 #include "taint.h"
 #include "utils/string.h"
 
+void trim_taint(zend_string *str, char *what, size_t what_len, int mode, zval *return_value);
+
 /**
  * taint 相关hook点
  */
 POST_HOOK_FUNCTION(strval, TAINT);
 POST_HOOK_FUNCTION(explode, TAINT);
 POST_HOOK_FUNCTION(implode, TAINT);
+POST_HOOK_FUNCTION(join, TAINT);
+POST_HOOK_FUNCTION(trim, TAINT);
+POST_HOOK_FUNCTION(ltrim, TAINT);
+POST_HOOK_FUNCTION(rtrim, TAINT);
 
 void post_global_strval_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
@@ -204,4 +210,237 @@ void post_global_implode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     {
         openrasp_taint_mark(return_value, new NodeSequence(ns));
     }
+}
+
+void post_global_join_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    return post_global_implode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAM_PASSTHRU);
+}
+
+static inline int php_charmask(unsigned char *input, size_t len, char *mask)
+{
+    unsigned char *end;
+    unsigned char c;
+    int result = SUCCESS;
+
+    memset(mask, 0, 256);
+    for (end = input + len; input < end; input++)
+    {
+        c = *input;
+        if ((input + 3 < end) && input[1] == '.' && input[2] == '.' && input[3] >= c)
+        {
+            memset(mask + c, 1, input[3] - c + 1);
+            input += 3;
+        }
+        else if ((input + 1 < end) && input[0] == '.' && input[1] == '.')
+        {
+            /* Error, try to be as helpful as possible:
+			   (a range ending/starting with '.' won't be captured here) */
+            if (end - len >= input)
+            { /* there was no 'left' char */
+                php_error_docref(NULL, E_WARNING, "Invalid '..'-range, no character to the left of '..'");
+                result = FAILURE;
+                continue;
+            }
+            if (input + 2 >= end)
+            { /* there is no 'right' char */
+                php_error_docref(NULL, E_WARNING, "Invalid '..'-range, no character to the right of '..'");
+                result = FAILURE;
+                continue;
+            }
+            if (input[-1] > input[2])
+            { /* wrong order */
+                php_error_docref(NULL, E_WARNING, "Invalid '..'-range, '..'-range needs to be incrementing");
+                result = FAILURE;
+                continue;
+            }
+            /* FIXME: better error (a..b..c is the only left possibility?) */
+            php_error_docref(NULL, E_WARNING, "Invalid '..'-range");
+            result = FAILURE;
+            continue;
+        }
+        else
+        {
+            mask[c] = 1;
+        }
+    }
+    return result;
+}
+
+void trim_taint(zend_string *str, char *what, size_t what_len, int mode, zval *return_value)
+{
+    if (openrasp_taint_possible(str))
+    {
+        const char *c = ZSTR_VAL(str);
+        size_t len = ZSTR_LEN(str);
+        NodeSequence ns = openrasp_taint_sequence(str);
+        register size_t i;
+        char mask[256];
+
+        if (what)
+        {
+            if (what_len == 1)
+            {
+                char p = *what;
+                if (mode & 1)
+                {
+                    for (i = 0; i < len; i++)
+                    {
+                        if (c[i] == p)
+                        {
+                            ns.erase(0, 1);
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                }
+                if (mode & 2)
+                {
+                    if (len > 0)
+                    {
+                        i = len - 1;
+                        do
+                        {
+                            if (c[i] == p)
+                            {
+                                ns.erase(ns.length() - 1);
+                            }
+                            else
+                            {
+                                break;
+                            }
+                        } while (i-- != 0);
+                    }
+                }
+            }
+            else
+            {
+                php_charmask((unsigned char *)what, what_len, mask);
+
+                if (mode & 1)
+                {
+                    for (i = 0; i < len; i++)
+                    {
+                        if (mask[(unsigned char)c[i]])
+                        {
+                            ns.erase(0, 1);
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                }
+                if (mode & 2)
+                {
+                    if (len > 0)
+                    {
+                        i = len - 1;
+                        do
+                        {
+                            if (mask[(unsigned char)c[i]])
+                            {
+                                ns.erase(ns.length() - 1);
+                            }
+                            else
+                            {
+                                break;
+                            }
+                        } while (i-- != 0);
+                    }
+                }
+            }
+        }
+        else
+        {
+            if (mode & 1)
+            {
+                for (i = 0; i < len; i++)
+                {
+                    if ((unsigned char)c[i] <= ' ' &&
+                        (c[i] == ' ' || c[i] == '\n' || c[i] == '\r' || c[i] == '\t' || c[i] == '\v' || c[i] == '\0'))
+                    {
+                        ns.erase(0, 1);
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+            if (mode & 2)
+            {
+                if (len > 0)
+                {
+                    i = len - 1;
+                    do
+                    {
+                        if ((unsigned char)c[i] <= ' ' &&
+                            (c[i] == ' ' || c[i] == '\n' || c[i] == '\r' || c[i] == '\t' || c[i] == '\v' || c[i] == '\0'))
+                        {
+                            ns.erase(ns.length() - 1);
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    } while (i-- != 0);
+                }
+            }
+        }
+        if (ns.taintedSize() && IS_STRING == Z_TYPE_P(return_value) && Z_STRLEN_P(return_value) && ns.length() == Z_STRLEN_P(return_value))
+        {
+            openrasp_taint_mark(return_value, new NodeSequence(ns));
+        }
+    }
+}
+
+void post_global_trim_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    if (IS_STRING != Z_TYPE_P(return_value) || Z_STRLEN_P(return_value) == 0)
+    {
+        return;
+    }
+    zend_string *str = nullptr;
+    zend_string *what = nullptr;
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "S|S", &str, &what) == FAILURE)
+    {
+        return;
+    }
+    trim_taint(str, (what ? ZSTR_VAL(what) : NULL), (what ? ZSTR_LEN(what) : 0), 3, return_value);
+}
+
+void post_global_ltrim_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    if (IS_STRING != Z_TYPE_P(return_value) || Z_STRLEN_P(return_value) == 0)
+    {
+        return;
+    }
+    zend_string *str = nullptr;
+    zend_string *what = nullptr;
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "S|S", &str, &what) == FAILURE)
+    {
+        return;
+    }
+    trim_taint(str, (what ? ZSTR_VAL(what) : NULL), (what ? ZSTR_LEN(what) : 0), 1, return_value);
+}
+
+void post_global_rtrim_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    if (IS_STRING != Z_TYPE_P(return_value) || Z_STRLEN_P(return_value) == 0)
+    {
+        return;
+    }
+    zend_string *str = nullptr;
+    zend_string *what = nullptr;
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "S|S", &str, &what) == FAILURE)
+    {
+        return;
+    }
+    trim_taint(str, (what ? ZSTR_VAL(what) : NULL), (what ? ZSTR_LEN(what) : 0), 2, return_value);
 }
