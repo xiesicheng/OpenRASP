@@ -18,6 +18,10 @@
 #include "taint.h"
 #include "utils/string.h"
 
+#define STR_PAD_LEFT 0
+#define STR_PAD_RIGHT 1
+#define STR_PAD_BOTH 2
+
 void trim_taint(zend_string *str, char *what, size_t what_len, int mode, zval *return_value);
 
 /**
@@ -30,6 +34,9 @@ POST_HOOK_FUNCTION(join, TAINT);
 POST_HOOK_FUNCTION(trim, TAINT);
 POST_HOOK_FUNCTION(ltrim, TAINT);
 POST_HOOK_FUNCTION(rtrim, TAINT);
+POST_HOOK_FUNCTION(strtolower, TAINT);
+POST_HOOK_FUNCTION(strtoupper, TAINT);
+POST_HOOK_FUNCTION(str_pad, TAINT);
 
 void post_global_strval_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
@@ -443,4 +450,115 @@ void post_global_rtrim_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
         return;
     }
     trim_taint(str, (what ? ZSTR_VAL(what) : NULL), (what ? ZSTR_LEN(what) : 0), 2, return_value);
+}
+
+void post_global_strtolower_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    zval *str = nullptr;
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &str) == FAILURE)
+    {
+        return;
+    }
+    str_unchanege_taint(str, return_value);
+}
+
+void post_global_strtoupper_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    zval *str = nullptr;
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &str) == FAILURE)
+    {
+        return;
+    }
+    str_unchanege_taint(str, return_value);
+}
+
+void post_global_str_pad_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    zend_string *input;   /* Input string */
+    zend_long pad_length; /* Length to pad to */
+
+    /* Helper variables */
+    size_t num_pad_chars; /* Number of padding characters (total - input size) */
+    zend_string *zs_pad_str = nullptr;
+    zend_long pad_type_val = STR_PAD_RIGHT; /* The padding type value */
+    size_t i, left_pad = 0, right_pad = 0;
+    zend_string *result = NULL; /* Resulting string */
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "Sl|Sl", &input, &pad_length, &zs_pad_str, &pad_type_val) == FAILURE)
+    {
+        return;
+    }
+
+    NodeSequence ns_pad;
+    if (nullptr == zs_pad_str)
+    {
+        ns_pad = NodeSequence(1);
+    }
+    else
+    {
+        if (ZSTR_LEN(zs_pad_str) == 0)
+        {
+            return;
+        }
+        ns_pad = openrasp_taint_sequence(zs_pad_str);
+    }
+
+    if (pad_length < 0 || (size_t)pad_length <= ZSTR_LEN(input))
+    {
+        str_unchanege_taint(input, return_value);
+    }
+
+    if (pad_type_val < STR_PAD_LEFT || pad_type_val > STR_PAD_BOTH)
+    {
+        return;
+    }
+
+    num_pad_chars = pad_length - ZSTR_LEN(input);
+    if (num_pad_chars >= INT_MAX)
+    {
+        return;
+    }
+
+    NodeSequence ns = openrasp_taint_sequence(input);
+    switch (pad_type_val)
+    {
+    case STR_PAD_RIGHT:
+        left_pad = 0;
+        right_pad = num_pad_chars;
+        break;
+
+    case STR_PAD_LEFT:
+        left_pad = num_pad_chars;
+        right_pad = 0;
+        break;
+
+    case STR_PAD_BOTH:
+        left_pad = num_pad_chars / 2;
+        right_pad = num_pad_chars - left_pad;
+        break;
+    }
+
+    NodeSequence ns_left;
+    while (ns_left.length() < left_pad)
+    {
+        ns_left.append(ns_pad);
+    }
+    ns_left.erase(left_pad);
+    ns.insert(0, ns_left);
+
+    NodeSequence ns_right;
+    while (ns_right.length() < right_pad)
+    {
+        ns_right.append(ns_pad);
+    }
+    ns_right.erase(right_pad);
+    ns.append(ns_right);
+
+    if (ns.taintedSize() &&
+        Z_TYPE_P(return_value) == IS_STRING &&
+        Z_STRLEN_P(return_value) &&
+        ns.length() == Z_STRLEN_P(return_value))
+    {
+        openrasp_taint_mark(return_value, new NodeSequence(ns));
+    }
 }

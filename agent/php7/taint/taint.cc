@@ -912,6 +912,16 @@ void str_unchanege_taint(zval *src, zval *dest)
     }
 }
 
+void str_unchanege_taint(zend_string *zs_src, zval *dest)
+{
+    if (openrasp_taint_possible(zs_src) &&
+        IS_STRING == Z_TYPE_P(dest) &&
+        ZSTR_LEN(zs_src) == Z_STRLEN_P(dest))
+    {
+        openrasp_taint_mark(dest, new NodeSequence(openrasp_taint_sequence(zs_src)));
+    }
+}
+
 void openrasp_taint_mark_strings(zval *symbol_table, std::string varsSource, std::function<bool(char *key)> filter)
 {
     if (Z_TYPE_P(symbol_table) != IS_ARRAY)
