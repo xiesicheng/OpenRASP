@@ -41,6 +41,8 @@ POST_HOOK_FUNCTION(str_pad, TAINT);
 POST_HOOK_FUNCTION(strstr, TAINT);
 POST_HOOK_FUNCTION(stristr, TAINT);
 POST_HOOK_FUNCTION(substr, TAINT);
+POST_HOOK_FUNCTION(dirname, TAINT);
+POST_HOOK_FUNCTION(basename, TAINT);
 
 void post_global_strval_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
@@ -806,6 +808,57 @@ void post_global_substr_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
             ns_sub.length() == Z_STRLEN_P(return_value))
         {
             openrasp_taint_mark(return_value, new NodeSequence(ns_sub));
+        }
+    }
+}
+
+void post_global_dirname_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    if (Z_TYPE_P(return_value) != IS_STRING || Z_STRLEN_P(return_value) == 0 ||
+        (Z_STRLEN_P(return_value) == 1 && (strcmp(Z_STRVAL_P(return_value), "/") == 0 || strcmp(Z_STRVAL_P(return_value), ".") == 0)))
+    {
+        return;
+    }
+
+    zend_string *str;
+    zend_long levels = 1;
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "S|l", &str, &levels) == FAILURE)
+    {
+        return;
+    }
+
+    if (openrasp_taint_possible(str))
+    {
+        NodeSequence ns = openrasp_taint_sequence(str);
+        ns.erase(Z_STRLEN_P(return_value));
+        if (ns.taintedSize() &&
+            ns.length() == Z_STRLEN_P(return_value))
+        {
+            openrasp_taint_mark(return_value, new NodeSequence(ns));
+        }
+    }
+}
+
+void post_global_basename_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    char *suffix = NULL;
+    size_t suffix_len = 0;
+    zend_string *string;
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "S|s", &string, &suffix, &suffix_len) == FAILURE)
+    {
+        return;
+    }
+
+    if (openrasp_taint_possible(string))
+    {
+        NodeSequence ns = openrasp_taint_sequence(string);
+        NodeSequence ns_base = ns.sub(ZSTR_LEN(string) - (Z_STRLEN_P(return_value) + suffix_len), Z_STRLEN_P(return_value));
+        if (ns_base.taintedSize() &&
+            ns_base.length() == Z_STRLEN_P(return_value))
+        {
+            openrasp_taint_mark(return_value, new NodeSequence(ns_base));
         }
     }
 }

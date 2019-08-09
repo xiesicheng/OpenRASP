@@ -201,7 +201,7 @@ static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int f
     char *format, padding;
     int always_sign;
     int format_len;
-    std::vector<ReplaceItem> replace_tiems;
+    std::vector<ReplaceItem> replace_items;
 
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "+", &args, &argc) == FAILURE)
     {
@@ -263,7 +263,7 @@ static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int f
         else if (format[inpos + 1] == '%')
         {
             inpos += 2;
-            replace_tiems.push_back({inpos, 1, 0});
+            replace_items.push_back({inpos, 1, 0});
         }
         else
         {
@@ -438,7 +438,7 @@ static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int f
                         item_ns.append(1);
                     }
                 }
-                replace_tiems.push_back({percentage_mark_pos, inpos - percentage_mark_pos + 1, item_ns});
+                replace_items.push_back({percentage_mark_pos, inpos - percentage_mark_pos + 1, item_ns});
                 if (use_copy)
                 {
                     zval_dtor(&var_copy);
@@ -462,7 +462,7 @@ static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int f
                 if (call_user_function(EG(function_table), nullptr, &function, &retval, 2, params TSRMLS_CC) == SUCCESS &&
                     Z_TYPE(retval) == IS_STRING)
                 {
-                    replace_tiems.push_back({percentage_mark_pos, inpos - percentage_mark_pos + 1, Z_STRLEN(retval)});
+                    replace_items.push_back({percentage_mark_pos, inpos - percentage_mark_pos + 1, Z_STRLEN(retval)});
                     zval_dtor(&retval);
                 }
                 zval_ptr_dtor(&n_format);
@@ -474,8 +474,8 @@ static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int f
             inpos++;
         }
     }
-    auto item = replace_tiems.rbegin();
-    while (item != replace_tiems.rend())
+    auto item = replace_items.rbegin();
+    while (item != replace_items.rend())
     {
         ns.erase(item->pos, item->erase_length);
         ns.insert(item->pos, item->insert_ns);
