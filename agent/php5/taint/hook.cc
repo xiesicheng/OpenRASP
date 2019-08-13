@@ -620,7 +620,16 @@ void post_global_implode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 
         MAKE_STD_ZVAL(delim);
         ZVAL_STRINGL(delim, "", sizeof("") - 1, 0);
+        zval *origin_arg1 = nullptr;
+        if (Z_REFCOUNT_PP(arg1) > 1)
+        {
+            origin_arg1 = *arg1;
+        }
         SEPARATE_ZVAL(arg1);
+        if (nullptr != origin_arg1)
+        {
+            openrasp_taint_deep_copy(origin_arg1, *arg1 TSRMLS_CC);
+        }
         arr = *arg1;
     }
     else
