@@ -31,8 +31,10 @@ static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int f
 inline static int openrasp_sprintf_getnumber(char *buffer, int *pos);
 static inline int php_charmask(unsigned char *input, int len, char *mask TSRMLS_DC);
 void trim_taint(char *c, int len, char *what, int what_len, zval *return_value, int mode TSRMLS_DC);
-static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval **subject, zval *result, int case_sensitivity, int *replace_count TSRMLS_DC);
-static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, int case_sensitivity, zval *origin_subject);
+static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval **subject,
+                                            zval *result, int case_sensitivity, int *replace_count TSRMLS_DC);
+static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, int case_sensitivity,
+                                        zval *origin_subject, zval *origin_search, zval *origin_replace);
 static int openrasp_needle_char(zval *needle, char *target TSRMLS_DC);
 
 /**
@@ -58,6 +60,8 @@ OPENRASP_HOOK_FUNCTION(str_replace, taint)
 {
     bool type_ignored = openrasp_check_type_ignored(TAINT TSRMLS_CC);
     zval *origin_subject = nullptr;
+    zval *origin_search = nullptr;
+    zval *origin_replace = nullptr;
     if (!type_ignored)
     {
         zval **subject, **search, **replace, **subject_entry, **zcount = NULL;
@@ -73,12 +77,20 @@ OPENRASP_HOOK_FUNCTION(str_replace, taint)
             {
                 origin_subject = *subject;
             }
+            if (Z_REFCOUNT_PP(search) > 1)
+            {
+                origin_search = *search;
+            }
+            if (Z_REFCOUNT_PP(replace) > 1)
+            {
+                origin_replace = *replace;
+            }
         }
     }
     origin_function(INTERNAL_FUNCTION_PARAM_PASSTHRU);
     if (!type_ignored)
     {
-        openrasp_str_replace_common(INTERNAL_FUNCTION_PARAM_PASSTHRU, TAINT, 1, origin_subject);
+        openrasp_str_replace_common(INTERNAL_FUNCTION_PARAM_PASSTHRU, TAINT, 1, origin_subject, origin_search, origin_replace);
     }
 }
 
@@ -86,6 +98,8 @@ OPENRASP_HOOK_FUNCTION(str_ireplace, taint)
 {
     bool type_ignored = openrasp_check_type_ignored(TAINT TSRMLS_CC);
     zval *origin_subject = nullptr;
+    zval *origin_search = nullptr;
+    zval *origin_replace = nullptr;
     if (!type_ignored)
     {
         zval **subject, **search, **replace, **subject_entry, **zcount = NULL;
@@ -101,12 +115,20 @@ OPENRASP_HOOK_FUNCTION(str_ireplace, taint)
             {
                 origin_subject = *subject;
             }
+            if (Z_REFCOUNT_PP(search) > 1)
+            {
+                origin_search = *search;
+            }
+            if (Z_REFCOUNT_PP(replace) > 1)
+            {
+                origin_replace = *replace;
+            }
         }
     }
     origin_function(INTERNAL_FUNCTION_PARAM_PASSTHRU);
     if (!type_ignored)
     {
-        openrasp_str_replace_common(INTERNAL_FUNCTION_PARAM_PASSTHRU, TAINT, 0, origin_subject);
+        openrasp_str_replace_common(INTERNAL_FUNCTION_PARAM_PASSTHRU, TAINT, 0, origin_subject, origin_search, origin_replace);
     }
 }
 
@@ -886,7 +908,8 @@ void post_global_strtoupper_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     str_unchanege_taint(arg, return_value TSRMLS_CC);
 }
 
-static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval **subject, zval *result, int case_sensitivity, int *replace_count TSRMLS_DC)
+static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval **subject,
+                                            zval *result, int case_sensitivity, int *replace_count TSRMLS_DC)
 {
     zval **search_entry = nullptr;
     zval **replace_entry = nullptr;
@@ -921,11 +944,20 @@ static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval **
         /* For each entry in the search array, get the entry */
         while (zend_hash_get_current_data(Z_ARRVAL_P(search), (void **)&search_entry) == SUCCESS)
         {
-            std::string str_search_entry = std::string(Z_STRVAL_PP(search_entry), Z_STRLEN_PP(search_entry));
-            NodeSequence ns_search_entry = openrasp_taint_sequence(*search_entry);
             /* Make sure we're dealing with strings. */
-            SEPARATE_ZVAL(search_entry);
-            convert_to_string(*search_entry);
+            NodeSequence ns_search_entry;
+            if (Z_TYPE_PP(search_entry) == IS_STRING)
+            {
+                ns_search_entry = openrasp_taint_sequence(*search_entry);
+                SEPARATE_ZVAL(search_entry);
+            }
+            else
+            {
+                SEPARATE_ZVAL(search_entry);
+                convert_to_string(*search_entry);
+                ns_search_entry = openrasp_taint_sequence(*search_entry);
+            }
+            std::string str_search_entry = std::string(Z_STRVAL_PP(search_entry), Z_STRLEN_PP(search_entry));
             if (Z_STRLEN_PP(search_entry) == 0)
             {
                 zend_hash_move_forward(Z_ARRVAL_P(search));
@@ -1023,7 +1055,8 @@ static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval **
     }
 }
 
-static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, int case_sensitivity, zval *origin_subject)
+static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, int case_sensitivity,
+                                        zval *origin_subject, zval *origin_search, zval *origin_replace)
 {
     zval **subject, **search, **replace, **subject_entry, **zcount = NULL;
     char *string_key;
@@ -1043,6 +1076,14 @@ static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, i
     if (origin_subject != nullptr)
     {
         openrasp_taint_deep_copy(origin_subject, *subject TSRMLS_CC);
+    }
+    if (origin_search != nullptr)
+    {
+        openrasp_taint_deep_copy(origin_search, *search TSRMLS_CC);
+    }
+    if (origin_replace != nullptr)
+    {
+        openrasp_taint_deep_copy(origin_replace, *replace TSRMLS_CC);
     }
 
     /* Make sure we're dealing with strings and do the replacement. */
@@ -1084,7 +1125,16 @@ static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, i
 
             if (Z_TYPE_PP(subject_entry) != IS_ARRAY && Z_TYPE_PP(subject_entry) != IS_OBJECT)
             {
+                zval *origin_subject_entry = nullptr;
+                if (Z_REFCOUNT_PP(subject_entry) > 1)
+                {
+                    origin_subject_entry = *subject_entry;
+                }
                 SEPARATE_ZVAL(subject_entry);
+                if (nullptr != origin_subject_entry)
+                {
+                    openrasp_taint_deep_copy(origin_subject_entry, *subject_entry TSRMLS_CC);
+                }
                 openrasp_str_replace_in_subject(*search, *replace, subject_entry, *ele_value, case_sensitivity, ((argc > 3) ? &count : NULL) TSRMLS_CC);
             }
             else

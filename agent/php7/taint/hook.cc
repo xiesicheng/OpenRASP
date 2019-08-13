@@ -24,6 +24,7 @@
 
 static void trim_taint(zend_string *str, char *what, size_t what_len, int mode, zval *return_value);
 static int openrasp_needle_char(zval *needle, char *target);
+static void openrasp_str_replace_common(INTERNAL_FUNCTION_PARAMETERS, int case_sensitivity);
 
 /**
  * taint 相关hook点
@@ -43,6 +44,8 @@ POST_HOOK_FUNCTION(stristr, TAINT);
 POST_HOOK_FUNCTION(substr, TAINT);
 POST_HOOK_FUNCTION(dirname, TAINT);
 POST_HOOK_FUNCTION(basename, TAINT);
+POST_HOOK_FUNCTION(str_replace, TAINT);
+POST_HOOK_FUNCTION(str_ireplace, TAINT);
 
 void post_global_strval_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
@@ -251,24 +254,24 @@ static inline int php_charmask(unsigned char *input, size_t len, char *mask)
 			   (a range ending/starting with '.' won't be captured here) */
             if (end - len >= input)
             { /* there was no 'left' char */
-                php_error_docref(NULL, E_WARNING, "Invalid '..'-range, no character to the left of '..'");
+                php_error_docref(nullptr, E_WARNING, "Invalid '..'-range, no character to the left of '..'");
                 result = FAILURE;
                 continue;
             }
             if (input + 2 >= end)
             { /* there is no 'right' char */
-                php_error_docref(NULL, E_WARNING, "Invalid '..'-range, no character to the right of '..'");
+                php_error_docref(nullptr, E_WARNING, "Invalid '..'-range, no character to the right of '..'");
                 result = FAILURE;
                 continue;
             }
             if (input[-1] > input[2])
             { /* wrong order */
-                php_error_docref(NULL, E_WARNING, "Invalid '..'-range, '..'-range needs to be incrementing");
+                php_error_docref(nullptr, E_WARNING, "Invalid '..'-range, '..'-range needs to be incrementing");
                 result = FAILURE;
                 continue;
             }
             /* FIXME: better error (a..b..c is the only left possibility?) */
-            php_error_docref(NULL, E_WARNING, "Invalid '..'-range");
+            php_error_docref(nullptr, E_WARNING, "Invalid '..'-range");
             result = FAILURE;
             continue;
         }
@@ -423,7 +426,7 @@ void post_global_trim_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     {
         return;
     }
-    trim_taint(str, (what ? ZSTR_VAL(what) : NULL), (what ? ZSTR_LEN(what) : 0), 3, return_value);
+    trim_taint(str, (what ? ZSTR_VAL(what) : nullptr), (what ? ZSTR_LEN(what) : 0), 3, return_value);
 }
 
 void post_global_ltrim_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
@@ -439,7 +442,7 @@ void post_global_ltrim_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     {
         return;
     }
-    trim_taint(str, (what ? ZSTR_VAL(what) : NULL), (what ? ZSTR_LEN(what) : 0), 1, return_value);
+    trim_taint(str, (what ? ZSTR_VAL(what) : nullptr), (what ? ZSTR_LEN(what) : 0), 1, return_value);
 }
 
 void post_global_rtrim_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
@@ -455,7 +458,7 @@ void post_global_rtrim_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     {
         return;
     }
-    trim_taint(str, (what ? ZSTR_VAL(what) : NULL), (what ? ZSTR_LEN(what) : 0), 2, return_value);
+    trim_taint(str, (what ? ZSTR_VAL(what) : nullptr), (what ? ZSTR_LEN(what) : 0), 2, return_value);
 }
 
 void post_global_strtolower_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
@@ -488,7 +491,7 @@ void post_global_str_pad_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     zend_string *zs_pad_str = nullptr;
     zend_long pad_type_val = STR_PAD_RIGHT; /* The padding type value */
     size_t i, left_pad = 0, right_pad = 0;
-    zend_string *result = NULL; /* Resulting string */
+    zend_string *result = nullptr; /* Resulting string */
 
     if (zend_parse_parameters(ZEND_NUM_ARGS(), "Sl|Sl", &input, &pad_length, &zs_pad_str, &pad_type_val) == FAILURE)
     {
@@ -590,7 +593,7 @@ int openrasp_needle_char(zval *needle, char *target)
         *target = (char)zval_get_long(needle);
         return SUCCESS;
     default:
-        php_error_docref(NULL, E_WARNING, "needle is not a string or an integer");
+        php_error_docref(nullptr, E_WARNING, "needle is not a string or an integer");
         return FAILURE;
     }
 }
@@ -603,7 +606,7 @@ void post_global_strstr_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     }
     zval *needle;
     zend_string *haystack;
-    char *found = NULL;
+    char *found = nullptr;
     char needle_char[2];
     zend_long found_offset;
     zend_bool part = 0;
@@ -663,7 +666,7 @@ void post_global_stristr_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     }
     zval *needle;
     zend_string *haystack;
-    char *found = NULL;
+    char *found = nullptr;
     size_t found_offset;
     char *haystack_dup;
     char needle_char[2];
@@ -842,7 +845,7 @@ void post_global_dirname_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 
 void post_global_basename_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
-    char *suffix = NULL;
+    char *suffix = nullptr;
     size_t suffix_len = 0;
     zend_string *string;
 
@@ -861,4 +864,237 @@ void post_global_basename_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
             openrasp_taint_mark(return_value, new NodeSequence(ns_base));
         }
     }
+}
+
+static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval *subject, zval *result, int case_sensitivity)
+{
+    zval *search_entry = nullptr;
+    zval *replace_entry = nullptr;
+    zend_string *tmp_result = nullptr;
+    zend_string *replace_entry_str = nullptr;
+    zend_long replace_count = 0;
+    zend_string *subject_str;
+    uint32_t replace_idx;
+
+    /* Make sure we're dealing with strings. */
+    subject_str = zval_get_string(subject);
+    NodeSequence ns_subject = openrasp_taint_sequence(subject);
+    std::string str_subject(Z_STRVAL_P(subject), Z_STRLEN_P(subject));
+    if (ZSTR_LEN(subject_str) == 0)
+    {
+        zend_string_release(subject_str);
+        return;
+    }
+    NodeSequence ns_replace;
+    std::string str_replace;
+
+    /* If search is an array */
+    if (Z_TYPE_P(search) == IS_ARRAY)
+    {
+        /* Duplicate subject string for repeated replacement */
+        if (Z_TYPE_P(replace) == IS_ARRAY)
+        {
+            replace_idx = 0;
+        }
+        else
+        {
+            /* Set replacement value to the passed one */
+            ns_replace = openrasp_taint_sequence(replace);
+            str_replace = std::string(Z_STRVAL_P(replace), Z_STRLEN_P(replace));
+        }
+
+        /* For each entry in the search array, get the entry */
+        ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(search), search_entry)
+        {
+            /* Make sure we're dealing with strings. */
+            zend_string *search_str = zval_get_string(search_entry);
+            NodeSequence ns_search_entry = openrasp_taint_sequence(search_str);
+            std::string str_search_entry = std::string(ZSTR_VAL(search_str), ZSTR_LEN(search_str));
+            if (ZSTR_LEN(search_str) == 0)
+            {
+                if (Z_TYPE_P(replace) == IS_ARRAY)
+                {
+                    replace_idx++;
+                }
+                zend_string_release(search_str);
+                continue;
+            }
+
+            /* If replace is an array. */
+            if (Z_TYPE_P(replace) == IS_ARRAY)
+            {
+                /* Get current entry */
+                while (replace_idx < Z_ARRVAL_P(replace)->nNumUsed)
+                {
+                    replace_entry = &Z_ARRVAL_P(replace)->arData[replace_idx].val;
+                    if (Z_TYPE_P(replace_entry) != IS_UNDEF)
+                    {
+                        break;
+                    }
+                    replace_idx++;
+                }
+                if (replace_idx < Z_ARRVAL_P(replace)->nNumUsed)
+                {
+                    /* Make sure we're dealing with strings. */
+                    replace_entry_str = zval_get_string(replace_entry);
+
+                    /* Set replacement value to the one we got from array */
+                    ns_replace = openrasp_taint_sequence(replace_entry_str);
+                    str_replace = std::string(ZSTR_VAL(replace_entry_str), ZSTR_LEN(replace_entry_str));
+
+                    replace_idx++;
+                }
+                else
+                {
+                    /* We've run out of replacement strings, so use an empty one. */
+                    ns_replace = NodeSequence(0);
+                    str_replace = "";
+                }
+            }
+
+            size_t found = 0;
+            do
+            {
+                if (!case_sensitivity)
+                {
+                    found = openrasp::find_case_insensitive(str_subject, str_search_entry, found);
+                }
+                else
+                {
+                    found = str_subject.find(str_search_entry, found);
+                }
+                if (found != std::string::npos)
+                {
+                    str_subject.erase(found, str_search_entry.length());
+                    ns_subject.erase(found, str_search_entry.length());
+                    str_subject.insert(found, str_replace);
+                    ns_subject.insert(found, ns_replace);
+                    replace_count++;
+                }
+            } while (found != std::string::npos);
+
+            zend_string_release(search_str);
+
+            if (replace_entry_str)
+            {
+                zend_string_release(replace_entry_str);
+                replace_entry_str = nullptr;
+            }
+            if (ns_subject.taintedSize() && Z_TYPE_P(result) == IS_STRING && Z_STRLEN_P(result) &&
+                ns_subject.length() == Z_STRLEN_P(result))
+            {
+                openrasp_taint_mark(result, new NodeSequence(ns_subject));
+            }
+        }
+        ZEND_HASH_FOREACH_END();
+    }
+    else
+    {
+        std::string str_search = std::string(Z_STRVAL_P(search), Z_STRLEN_P(search));
+        NodeSequence ns_search = openrasp_taint_sequence(search);
+        ns_replace = openrasp_taint_sequence(replace);
+        str_replace = std::string(Z_STRVAL_P(replace), Z_STRLEN_P(replace));
+        size_t found = 0;
+        do
+        {
+            if (!case_sensitivity)
+            {
+                found = openrasp::find_case_insensitive(str_subject, str_search, found);
+            }
+            else
+            {
+                found = str_subject.find(str_search, found);
+            }
+            if (found != std::string::npos)
+            {
+                str_subject.erase(found, str_search.length());
+                ns_subject.erase(found, str_search.length());
+                str_subject.insert(found, str_replace);
+                ns_subject.insert(found, ns_replace);
+                replace_count++;
+            }
+        } while (found != std::string::npos);
+        if (ns_subject.taintedSize() && Z_TYPE_P(result) == IS_STRING && Z_STRLEN_P(result) &&
+            ns_subject.length() == Z_STRLEN_P(result))
+        {
+            openrasp_taint_mark(result, new NodeSequence(ns_subject));
+        }
+    }
+    zend_string_release(subject_str);
+    return;
+}
+
+void openrasp_str_replace_common(INTERNAL_FUNCTION_PARAMETERS, int case_sensitivity)
+{
+    zval *subject, *search, *replace, *subject_entry, *zcount = nullptr;
+    zval result;
+    zend_string *string_key;
+    zend_ulong num_key;
+    zend_long count = 0;
+    int argc = ZEND_NUM_ARGS();
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "zzz|z", &search, &replace, &subject, &zcount) == FAILURE)
+    {
+        return;
+    }
+    /* Make sure we're dealing with strings and do the replacement. */
+    if (Z_TYPE_P(search) != IS_ARRAY)
+    {
+        convert_to_string_ex(search);
+        if (Z_TYPE_P(replace) != IS_STRING)
+        {
+            convert_to_string_ex(replace);
+        }
+    }
+    else if (Z_TYPE_P(replace) != IS_ARRAY)
+    {
+        convert_to_string_ex(replace);
+    }
+
+    /* if subject is an array */
+    if (Z_TYPE_P(subject) == IS_ARRAY)
+    {
+        /* For each subject entry, convert it to string, then perform replacement
+		   and add the result to the return_value array. */
+        ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(subject), num_key, string_key, subject_entry)
+        {
+            ZVAL_DEREF(subject_entry);
+            zval *result_entry = nullptr;
+            if (string_key != nullptr)
+            {
+                if ((result_entry = zend_hash_find(Z_ARRVAL_P(return_value), string_key)) == nullptr ||
+                    Z_TYPE_P(result_entry) != Z_TYPE_P(subject_entry))
+                {
+                    continue;
+                }
+            }
+            else
+            {
+                if ((result_entry = zend_hash_index_find(Z_ARRVAL_P(return_value), num_key)) == nullptr ||
+                    Z_TYPE_P(result_entry) != Z_TYPE_P(subject_entry))
+                {
+                    continue;
+                }
+            }
+
+            if (Z_TYPE_P(subject_entry) != IS_ARRAY && Z_TYPE_P(subject_entry) != IS_OBJECT)
+            {
+                openrasp_str_replace_in_subject(search, replace, subject_entry, result_entry, case_sensitivity);
+            }
+        }
+        ZEND_HASH_FOREACH_END();
+    }
+    else
+    { /* if subject is not an array */
+        openrasp_str_replace_in_subject(search, replace, subject, return_value, case_sensitivity);
+    }
+}
+
+void post_global_str_replace_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    openrasp_str_replace_common(INTERNAL_FUNCTION_PARAM_PASSTHRU, 1);
+}
+
+void post_global_str_ireplace_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+    openrasp_str_replace_common(INTERNAL_FUNCTION_PARAM_PASSTHRU, 0);
 }
