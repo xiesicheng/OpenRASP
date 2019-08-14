@@ -263,14 +263,11 @@ static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int f
         format_offset = 0;
     }
     convert_to_string_ex(args[format_offset]);
-    if (Z_TYPE_PP(args[format_offset]) == IS_STRING)
-    {
-        ns = openrasp_taint_sequence(*args[format_offset]);
-    }
-    else
+    if (Z_TYPE_PP(args[format_offset]) != IS_STRING)
     {
         return;
     }
+    ns = openrasp_taint_sequence(*args[format_offset]);
     format = Z_STRVAL_PP(args[format_offset]);
     format_len = Z_STRLEN_PP(args[format_offset]);
     currarg = 1;

@@ -18,6 +18,11 @@
 #include "taint.h"
 #include "utils/string.h"
 
+#define ALIGN_LEFT 0
+#define ALIGN_RIGHT 1
+#define ADJ_WIDTH 1
+#define ADJ_PRECISION 2
+
 #define STR_PAD_LEFT 0
 #define STR_PAD_RIGHT 1
 #define STR_PAD_BOTH 2
@@ -25,6 +30,7 @@
 static void trim_taint(zend_string *str, char *what, size_t what_len, int mode, zval *return_value);
 static int openrasp_needle_char(zval *needle, char *target);
 static void openrasp_str_replace_common(INTERNAL_FUNCTION_PARAMETERS, int case_sensitivity);
+static void taint_formatted_print(zend_execute_data *execute_data, int use_array, int format_offset, NodeSequence &ns);
 
 /**
  * taint 相关hook点
@@ -46,6 +52,36 @@ POST_HOOK_FUNCTION(dirname, TAINT);
 POST_HOOK_FUNCTION(basename, TAINT);
 POST_HOOK_FUNCTION(str_replace, TAINT);
 POST_HOOK_FUNCTION(str_ireplace, TAINT);
+POST_HOOK_FUNCTION(vsprintf, TAINT);
+#ifdef sprintf
+#undef sprintf
+#endif
+OPENRASP_HOOK_FUNCTION(sprintf, taint)
+{
+    bool type_ignored = openrasp_check_type_ignored(TAINT);
+    static bool processing = false;
+    NodeSequence ns;
+    if (!type_ignored)
+    {
+        if (!processing)
+        {
+            processing = true;
+            taint_formatted_print(execute_data, 0, 0, ns);
+            processing = false;
+        }
+    }
+    origin_function(INTERNAL_FUNCTION_PARAM_PASSTHRU);
+    if (!type_ignored && processing == false)
+    {
+        if (ns.taintedSize() && IS_STRING == Z_TYPE_P(return_value) && Z_STRLEN_P(return_value) && ns.length() == Z_STRLEN_P(return_value))
+        {
+            openrasp_taint_mark(return_value, new NodeSequence(ns));
+        }
+    }
+}
+#ifndef sprintf
+#define sprintf php_sprintf
+#endif
 
 void post_global_strval_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
@@ -1097,4 +1133,314 @@ void post_global_str_replace_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 void post_global_str_ireplace_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
     openrasp_str_replace_common(INTERNAL_FUNCTION_PARAM_PASSTHRU, 0);
+}
+
+void post_global_sprintf_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+}
+
+void post_global_vsprintf_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
+{
+}
+
+typedef struct ReplaceItem_t
+{
+    int pos;
+    size_t erase_length;
+    NodeSequence insert_ns;
+} ReplaceItem;
+
+inline static int openrasp_sprintf_getnumber(char *buffer, size_t *pos)
+{
+    char *endptr;
+    register zend_long num = ZEND_STRTOL(&buffer[*pos], &endptr, 10);
+    register size_t i = 0;
+
+    if (endptr != NULL)
+    {
+        i = (endptr - &buffer[*pos]);
+    }
+    *pos += i;
+
+    if (num >= INT_MAX || num < 0)
+    {
+        return -1;
+    }
+    else
+    {
+        return (int)num;
+    }
+}
+
+void taint_formatted_print(zend_execute_data *execute_data, int use_array, int format_offset, NodeSequence &ns)
+{
+    zval *newargs = NULL;
+    zval *args, *z_format;
+    int argc;
+    size_t size = 240, inpos = 0, temppos;
+    int alignment, currarg, adjusting, argnum, width, precision;
+    char *format, padding;
+    int always_sign;
+    size_t format_len;
+    std::vector<ReplaceItem> replace_items;
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "+", &args, &argc) == FAILURE)
+    {
+        return;
+    }
+
+    /* verify the number of args */
+    if ((use_array && argc != (2 + format_offset)) ||
+        (!use_array && argc < (1 + format_offset)))
+    {
+        return;
+    }
+
+    convert_to_string_ex(&args[format_offset]);
+    if (use_array)
+    {
+        int i = 1;
+        zval *zv;
+        zval *array;
+
+        z_format = &args[format_offset];
+        array = &args[1 + format_offset];
+        if (Z_TYPE_P(array) != IS_ARRAY)
+        {
+            convert_to_array(array);
+        }
+
+        argc = 1 + zend_hash_num_elements(Z_ARRVAL_P(array));
+        newargs = (zval *)safe_emalloc(argc, sizeof(zval), 0);
+        ZVAL_COPY_VALUE(&newargs[0], z_format);
+
+        ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(array), zv)
+        {
+            ZVAL_COPY_VALUE(&newargs[i], zv);
+            i++;
+        }
+        ZEND_HASH_FOREACH_END();
+        args = newargs;
+        format_offset = 0;
+    }
+    if (Z_TYPE(args[format_offset]) != IS_STRING)
+    {
+        return;
+    }
+    ns = openrasp_taint_sequence(&args[format_offset]);
+    format = Z_STRVAL(args[format_offset]);
+    format_len = Z_STRLEN(args[format_offset]);
+
+    currarg = 1;
+
+    while (inpos < Z_STRLEN(args[format_offset]))
+    {
+        int expprec = 0;
+        zval *tmp;
+
+        if (format[inpos] != '%')
+        {
+            inpos++;
+        }
+        else if (format[inpos + 1] == '%')
+        {
+            inpos += 2;
+            replace_items.push_back({inpos, 1, 0});
+        }
+        else
+        {
+            int percentage_mark_pos = inpos;
+            /* starting a new format specifier, reset variables */
+            alignment = ALIGN_RIGHT;
+            adjusting = 0;
+            padding = ' ';
+            always_sign = 0;
+            inpos++; /* skip the '%' */
+            int modifiers_pos = inpos;
+            if (isascii((int)format[inpos]) && !isalpha((int)format[inpos]))
+            {
+                /* first look for argnum */
+                temppos = inpos;
+                while (isdigit((int)format[temppos]))
+                    temppos++;
+                if (format[temppos] == '$')
+                {
+                    argnum = openrasp_sprintf_getnumber(format, &inpos);
+
+                    if (argnum <= 0)
+                    {
+                        if (newargs)
+                        {
+                            efree(newargs);
+                        }
+                        return;
+                    }
+
+                    inpos++; /* skip the '$' */
+                }
+                else
+                {
+                    argnum = currarg++;
+                }
+
+                argnum += format_offset;
+
+                modifiers_pos = inpos;
+                /* after argnum comes modifiers */
+                for (;; inpos++)
+                {
+                    if (format[inpos] == ' ' || format[inpos] == '0')
+                    {
+                        padding = format[inpos];
+                    }
+                    else if (format[inpos] == '-')
+                    {
+                        alignment = ALIGN_LEFT;
+                        /* space padding, the default */
+                    }
+                    else if (format[inpos] == '+')
+                    {
+                        always_sign = 1;
+                    }
+                    else if (format[inpos] == '\'' && inpos + 1 < format_len)
+                    {
+                        padding = format[++inpos];
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+
+                /* after modifiers comes width */
+                if (isdigit((int)format[inpos]))
+                {
+                    if ((width = openrasp_sprintf_getnumber(format, &inpos)) < 0)
+                    {
+                        if (newargs)
+                        {
+                            efree(newargs);
+                        }
+                        return;
+                    }
+                    adjusting |= ADJ_WIDTH;
+                }
+                else
+                {
+                    width = 0;
+                }
+
+                /* after width and argnum comes precision */
+                if (format[inpos] == '.')
+                {
+                    inpos++;
+                    if (isdigit((int)format[inpos]))
+                    {
+                        if ((precision = openrasp_sprintf_getnumber(format, &inpos)) < 0)
+                        {
+                            if (newargs)
+                            {
+                                efree(newargs);
+                            }
+                            return;
+                        }
+                        adjusting |= ADJ_PRECISION;
+                        expprec = 1;
+                    }
+                    else
+                    {
+                        precision = 0;
+                    }
+                }
+                else
+                {
+                    precision = 0;
+                }
+            }
+            else
+            {
+                width = precision = 0;
+                argnum = currarg++ + format_offset;
+            }
+
+            if (argnum >= argc)
+            {
+                if (newargs)
+                {
+                    efree(newargs);
+                }
+                return;
+            }
+
+            if (format[inpos] == 'l')
+            {
+                inpos++;
+            }
+            /* now we expect to find a type specifier */
+            tmp = &args[argnum];
+            NodeSequence item_ns;
+            if (openrasp_taint_possible(tmp))
+            {
+                item_ns = openrasp_taint_sequence(tmp);
+            }
+            if (format[inpos] == 's' && Z_TYPE_P(tmp) == IS_STRING && item_ns.taintedSize())
+            {
+                zend_string *str = zval_get_string(tmp);
+                register size_t npad;
+                size_t req_size;
+                size_t copy_len;
+
+                copy_len = (expprec ? MIN(precision, ZSTR_LEN(str)) : ZSTR_LEN(str));
+                npad = (width < copy_len) ? 0 : width - copy_len;
+                if (alignment == ALIGN_RIGHT)
+                {
+                    while (npad-- > 0)
+                    {
+                        item_ns.insert(0, 1);
+                    }
+                }
+                if (alignment == ALIGN_LEFT)
+                {
+                    while (npad--)
+                    {
+                        item_ns.append(1);
+                    }
+                }
+                replace_items.push_back({percentage_mark_pos, inpos - percentage_mark_pos + 1, item_ns});
+
+                zend_string_release(str);
+            }
+            else
+            {
+                zval function;
+                ZVAL_STRING(&function, "sprintf");
+                zval retval;
+                std::string specifier = "%";
+                specifier.append(Z_STRVAL(args[format_offset]) + modifiers_pos, inpos - modifiers_pos + 1);
+                zval params[2];
+                ZVAL_STRING(&params[0], (char *)specifier.c_str());
+                params[1] = *tmp;
+                if (call_user_function(EG(function_table), nullptr, &function, &retval, 2, params) == SUCCESS &&
+                    Z_TYPE(retval) == IS_STRING)
+                {
+                    replace_items.push_back({percentage_mark_pos, inpos - percentage_mark_pos + 1, Z_STRLEN(retval)});
+                }
+                zval_dtor(&retval);
+                zval_ptr_dtor(&params[0]);
+                zval_ptr_dtor(&function);
+            }
+            inpos++;
+        }
+    }
+    auto item = replace_items.rbegin();
+    while (item != replace_items.rend())
+    {
+        ns.erase(item->pos, item->erase_length);
+        ns.insert(item->pos, item->insert_ns);
+        ++item;
+    }
+    if (newargs)
+    {
+        efree(newargs);
+    }
 }
