@@ -467,7 +467,6 @@ static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int f
             {
                 zval function;
                 INIT_ZVAL(function);
-                ZVAL_STRING(&function, "sprintf", 0);
                 zval retval;
                 zval *o_format = *args[format_offset];
                 zval *n_format = nullptr;
@@ -477,12 +476,30 @@ static void taint_formatted_print(NodeSequence &ns, int ht, int use_array, int f
                 ZVAL_STRING(n_format, (char *)specifier.c_str(), 1);
                 zval *params[2];
                 params[0] = n_format;
-                params[1] = tmp;
+                zval *arr_args = nullptr;
+                if (use_array)
+                {
+                    ZVAL_STRING(&function, "vsprintf", 0);
+                    MAKE_STD_ZVAL(arr_args);
+                    array_init(arr_args);
+                    add_next_index_zval(arr_args, tmp);
+                    Z_ADDREF_P(tmp);
+                    params[1] = arr_args;
+                }
+                else
+                {
+                    ZVAL_STRING(&function, "sprintf", 0);
+                    params[1] = tmp;
+                }
                 if (call_user_function(EG(function_table), nullptr, &function, &retval, 2, params TSRMLS_CC) == SUCCESS &&
                     Z_TYPE(retval) == IS_STRING)
                 {
                     replace_items.push_back({percentage_mark_pos, inpos - percentage_mark_pos + 1, Z_STRLEN(retval)});
                     zval_dtor(&retval);
+                }
+                if (use_array && arr_args)
+                {
+                    zval_ptr_dtor(&arr_args);
                 }
                 zval_ptr_dtor(&n_format);
             }

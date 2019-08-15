@@ -52,7 +52,7 @@ POST_HOOK_FUNCTION(dirname, TAINT);
 POST_HOOK_FUNCTION(basename, TAINT);
 POST_HOOK_FUNCTION(str_replace, TAINT);
 POST_HOOK_FUNCTION(str_ireplace, TAINT);
-POST_HOOK_FUNCTION(vsprintf, TAINT);
+
 #ifdef sprintf
 #undef sprintf
 #endif
@@ -82,6 +82,30 @@ OPENRASP_HOOK_FUNCTION(sprintf, taint)
 #ifndef sprintf
 #define sprintf php_sprintf
 #endif
+
+OPENRASP_HOOK_FUNCTION(vsprintf, taint)
+{
+    bool type_ignored = openrasp_check_type_ignored(TAINT);
+    static bool processing = false;
+    NodeSequence ns;
+    if (!type_ignored)
+    {
+        if (!processing)
+        {
+            processing = true;
+            taint_formatted_print(execute_data, 1, 0, ns);
+            processing = false;
+        }
+    }
+    origin_function(INTERNAL_FUNCTION_PARAM_PASSTHRU);
+    if (!type_ignored && processing == false)
+    {
+        if (ns.taintedSize() && IS_STRING == Z_TYPE_P(return_value) && Z_STRLEN_P(return_value) && ns.length() == Z_STRLEN_P(return_value))
+        {
+            openrasp_taint_mark(return_value, new NodeSequence(ns));
+        }
+    }
+}
 
 void post_global_strval_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 {
@@ -1135,14 +1159,6 @@ void post_global_str_ireplace_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     openrasp_str_replace_common(INTERNAL_FUNCTION_PARAM_PASSTHRU, 0);
 }
 
-void post_global_sprintf_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
-{
-}
-
-void post_global_vsprintf_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
-{
-}
-
 typedef struct ReplaceItem_t
 {
     int pos;
@@ -1413,17 +1429,33 @@ void taint_formatted_print(zend_execute_data *execute_data, int use_array, int f
             else
             {
                 zval function;
-                ZVAL_STRING(&function, "sprintf");
+
                 zval retval;
                 std::string specifier = "%";
                 specifier.append(Z_STRVAL(args[format_offset]) + modifiers_pos, inpos - modifiers_pos + 1);
                 zval params[2];
                 ZVAL_STRING(&params[0], (char *)specifier.c_str());
-                params[1] = *tmp;
+                if (use_array)
+                {
+                    ZVAL_STRING(&function, "vsprintf");
+                    array_init(&params[1]);
+                    Z_TRY_ADDREF_P(tmp);
+                    add_next_index_zval(&params[1], tmp);
+                }
+                else
+                {
+                    ZVAL_STRING(&function, "sprintf");
+                    params[1] = *tmp;
+                }
+
                 if (call_user_function(EG(function_table), nullptr, &function, &retval, 2, params) == SUCCESS &&
                     Z_TYPE(retval) == IS_STRING)
                 {
                     replace_items.push_back({percentage_mark_pos, inpos - percentage_mark_pos + 1, Z_STRLEN(retval)});
+                }
+                if (use_array && Z_TYPE(params[1]) == IS_ARRAY)
+                {
+                    zval_dtor(&params[1]);
                 }
                 zval_dtor(&retval);
                 zval_ptr_dtor(&params[0]);
