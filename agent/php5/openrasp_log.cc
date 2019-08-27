@@ -793,7 +793,7 @@ void RaspLoggerEntry::update_common_info(TSRMLS_D)
                 std::string header_key;
                 type = zend_hash_get_current_key(Z_ARRVAL_P(migrate_src), &key, &idx, 0);
                 if (type == HASH_KEY_IS_STRING &&
-                    !(header_key = convert_to_header_key(key, strlen(key))).empty() &&
+                    convert_to_header_key(key, strlen(key), header_key) &&
                     zend_hash_get_current_data(Z_ARRVAL_P(migrate_src), (void **)&value) == SUCCESS &&
                     Z_TYPE_PP(value) == IS_STRING)
                 {

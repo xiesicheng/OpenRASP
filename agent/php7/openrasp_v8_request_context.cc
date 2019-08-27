@@ -256,8 +256,8 @@ static void header_getter(v8::Local<v8::Name> name, const v8::PropertyCallbackIn
     zend_string *key;
     ZEND_HASH_FOREACH_STR_KEY_VAL(_SERVER, key, value)
     {
-        std::string tmp = convert_to_header_key(key->val, key->len);
-        if (!tmp.empty())
+        std::string tmp;
+        if (convert_to_header_key(key->val, key->len, tmp))
         {
             obj->Set(NewV8String(isolate, tmp), NewV8ValueFromZval(isolate, value));
         }

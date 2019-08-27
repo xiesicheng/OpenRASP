@@ -300,7 +300,8 @@ PHP_RINIT_FUNCTION(openrasp)
             zval *http_global_server = fetch_http_globals(TRACK_VARS_SERVER TSRMLS_CC);
             openrasp_taint_mark_strings(http_global_server, "$_SERVER" TSRMLS_CC,
                                         [](char *key) {
-                                            return convert_to_header_key(key, strlen(key)).empty();
+                                            std::string header_key;
+                                            return !convert_to_header_key(key, strlen(key), header_key);
                                         });
         }
 

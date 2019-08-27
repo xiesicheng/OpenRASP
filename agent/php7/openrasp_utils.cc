@@ -234,38 +234,38 @@ bool need_alloc_shm_current_sapi()
     return 0;
 }
 
-std::string convert_to_header_key(char *key, size_t length)
+bool convert_to_header_key(char *key, size_t length, std::string &header_key)
 {
-    std::string result;
-    if (nullptr == key)
+    if (nullptr != key)
     {
-        return result;
-    }
-    if (strcmp("HTTP_CONTENT_TYPE", key) == 0 || strcmp("CONTENT_TYPE", key) == 0)
-    {
-        result = "content-type";
-    }
-    else if (strcmp("HTTP_CONTENT_LENGTH", key) == 0 || strcmp("CONTENT_LENGTH", key) == 0)
-    {
-        result = "content-length";
-    }
-    else if (strncmp(key, "HTTP_", 5) == 0)
-    {
-        std::string http_header(key + 5, length - 5);
-        for (auto &ch : http_header)
+        header_key.clear();
+        if (strcmp("HTTP_CONTENT_TYPE", key) == 0 || strcmp("CONTENT_TYPE", key) == 0)
         {
-            if (ch == '_')
-            {
-                ch = '-';
-            }
-            else
-            {
-                ch = std::tolower(ch);
-            }
+            header_key = "content-type";
         }
-        result = http_header;
+        else if (strcmp("HTTP_CONTENT_LENGTH", key) == 0 || strcmp("CONTENT_LENGTH", key) == 0)
+        {
+            header_key = "content-length";
+        }
+        else if (strncmp(key, "HTTP_", 5) == 0)
+        {
+            std::string http_header(key + 5, length - 5);
+            for (auto &ch : http_header)
+            {
+                if (ch == '_')
+                {
+                    ch = '-';
+                }
+                else
+                {
+                    ch = std::tolower(ch);
+                }
+            }
+            header_key = http_header;
+        }
+        return !header_key.empty();
     }
-    return result;
+    return false;
 }
 
 bool openrasp_parse_url(const std::string &origin_url, std::string &scheme, std::string &host, std::string &port)

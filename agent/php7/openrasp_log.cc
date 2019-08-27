@@ -787,8 +787,8 @@ void RaspLoggerEntry::update_common_info()
             zend_string *key;
             ZEND_HASH_FOREACH_STR_KEY_VAL(Z_ARRVAL_P(migrate_src), key, value)
             {
-                std::string header_key = convert_to_header_key(key->val, key->len);
-                if (!header_key.empty())
+                std::string header_key;
+                if (convert_to_header_key(key->val, key->len, header_key))
                 {
                     add_assoc_zval(&z_header, header_key.c_str(), value);
                     Z_TRY_ADDREF_P(value);

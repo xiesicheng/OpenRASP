@@ -279,7 +279,7 @@ static void header_getter(v8::Local<v8::Name> name, const v8::PropertyCallbackIn
         std::string header_key;
         type = zend_hash_get_current_key(SERVER, &key, &idx, 0);
         if (type == HASH_KEY_IS_STRING &&
-            !(header_key = convert_to_header_key(key, strlen(key))).empty() &&
+            convert_to_header_key(key, strlen(key), header_key) &&
             zend_hash_get_current_data(SERVER, (void **)&value) == SUCCESS &&
             Z_TYPE_PP(value) == IS_STRING)
         {
