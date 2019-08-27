@@ -2206,16 +2206,6 @@ int openrasp_assign_ref_handler(ZEND_OPCODE_HANDLER_ARGS)
 #endif
         break;
     }
-    if (!value_ptr_ptr ||
-        *value_ptr_ptr == &EG(error_zval) ||
-        IS_STRING != Z_TYPE_PP(value_ptr_ptr) ||
-        PZVAL_IS_REF(*value_ptr_ptr) ||
-        !Z_STRLEN_PP(value_ptr_ptr) ||
-        !openrasp_taint_possible(*value_ptr_ptr))
-    {
-        return ZEND_USER_OPCODE_DISPATCH;
-    }
-
     if (value_type == IS_VAR)
     {
         if (value_ptr_ptr &&
