@@ -901,7 +901,7 @@ static int openrasp_binary_assign_op_obj_helper(binary_op_type binary_op, zend_e
     return ZEND_USER_OPCODE_CONTINUE;
 }
 
-void str_unchanege_taint(zval *src, zval *dest)
+void str_unchange_taint(zval *src, zval *dest)
 {
     if (Z_TYPE_P(src) == IS_STRING &&
         openrasp_taint_possible(src) &&
@@ -912,7 +912,7 @@ void str_unchanege_taint(zval *src, zval *dest)
     }
 }
 
-void str_unchanege_taint(zend_string *zs_src, zval *dest)
+void str_unchange_taint(zend_string *zs_src, zval *dest)
 {
     if (openrasp_taint_possible(zs_src) &&
         IS_STRING == Z_TYPE_P(dest) &&

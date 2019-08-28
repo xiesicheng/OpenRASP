@@ -115,7 +115,7 @@ void post_global_strval_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     {
         WRONG_PARAM_COUNT;
     }
-    str_unchanege_taint(*arg, return_value);
+    str_unchange_taint(*arg, return_value);
 }
 
 void post_global_explode_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
@@ -528,7 +528,7 @@ void post_global_strtolower_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     {
         return;
     }
-    str_unchanege_taint(str, return_value);
+    str_unchange_taint(str, return_value);
 }
 
 void post_global_strtoupper_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
@@ -538,7 +538,7 @@ void post_global_strtoupper_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
     {
         return;
     }
-    str_unchanege_taint(str, return_value);
+    str_unchange_taint(str, return_value);
 }
 
 void post_global_str_pad_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
@@ -574,7 +574,7 @@ void post_global_str_pad_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
 
     if (pad_length < 0 || (size_t)pad_length <= ZSTR_LEN(input))
     {
-        str_unchanege_taint(input, return_value);
+        str_unchange_taint(input, return_value);
     }
 
     if (pad_type_val < STR_PAD_LEFT || pad_type_val > STR_PAD_BOTH)

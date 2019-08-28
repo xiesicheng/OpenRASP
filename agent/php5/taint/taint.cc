@@ -1351,7 +1351,7 @@ void openrasp_taint_deep_copy(zval *source, zval *target TSRMLS_DC)
     switch (Z_TYPE_P(source) & IS_CONSTANT_TYPE_MASK)
     {
     case IS_STRING:
-        str_unchanege_taint(source, target TSRMLS_CC);
+        str_unchange_taint(source, target TSRMLS_CC);
         break;
     case IS_ARRAY:
     {
@@ -2682,17 +2682,20 @@ int openrasp_send_ref_handler(ZEND_OPCODE_HANDLER_ARGS)
         return ZEND_USER_OPCODE_CONTINUE;
     }
 
-    NodeSequence ns;
-    if (varptr_ptr && openrasp_taint_possible(*varptr_ptr))
+    zval *origin_valptr = nullptr;
+    if (!PZVAL_IS_REF(*varptr_ptr))
     {
-        ns = openrasp_taint_sequence(*varptr_ptr);
+        if (Z_REFCOUNT_PP((varptr_ptr)) > 1)
+        {
+            origin_valptr = *varptr_ptr;
+        }
     }
     SEPARATE_ZVAL_TO_MAKE_IS_REF(varptr_ptr);
-    Z_ADDREF_P(*varptr_ptr);
-    if (ns.taintedSize())
+    if (origin_valptr)
     {
-        openrasp_taint_mark(*varptr_ptr, new NodeSequence(ns) TSRMLS_CC);
+        openrasp_taint_deep_copy(origin_valptr, *varptr_ptr TSRMLS_CC);
     }
+    Z_ADDREF_P(*varptr_ptr);
     OPENRASP_ARG_PUSH(*varptr_ptr);
 
     if (IS_VAR == op1_type && free_op1.var)
@@ -2742,7 +2745,7 @@ PHP_FUNCTION(taint_dump)
     RETURN_FALSE;
 }
 
-void str_unchanege_taint(zval *src, zval *dest TSRMLS_DC)
+void str_unchange_taint(zval *src, zval *dest TSRMLS_DC)
 {
     if (Z_TYPE_P(src) == IS_STRING &&
         openrasp_taint_possible(src) &&
