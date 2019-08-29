@@ -420,6 +420,10 @@ PHP_MINIT_FUNCTION(openrasp_hook)
     
     for (size_t i = 0; i < PriorityType::pTotal; ++i)
     {
+        if (!openrasp_ini.taint_enable && PriorityType::pZero == i)
+        {
+            continue;
+        }
         for (size_t j = 0; j < global_hook_handlers_len[i]; ++j)
         {
             global_hook_handlers[i][j](TSRMLS_C);

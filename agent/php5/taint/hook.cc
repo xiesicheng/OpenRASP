@@ -36,27 +36,51 @@ static void openrasp_str_replace_in_subject(zval *search, zval *replace, zval **
 static void openrasp_str_replace_common(OPENRASP_INTERNAL_FUNCTION_PARAMETERS, int case_sensitivity,
                                         zval *origin_subject, zval *origin_search, zval *origin_replace);
 static int openrasp_needle_char(zval *needle, char *target TSRMLS_DC);
+static int openrasp_array_walk(HashTable *target_hash, zval *userdata, int recursive TSRMLS_DC);
 
 /**
  * taint 相关hook点
  */
-POST_HOOK_FUNCTION(strval, TAINT);
-POST_HOOK_FUNCTION(explode, TAINT);
-POST_HOOK_FUNCTION(implode, TAINT);
-POST_HOOK_FUNCTION(join, TAINT);
-POST_HOOK_FUNCTION(trim, TAINT);
-POST_HOOK_FUNCTION(ltrim, TAINT);
-POST_HOOK_FUNCTION(rtrim, TAINT);
-POST_HOOK_FUNCTION(strtolower, TAINT);
-POST_HOOK_FUNCTION(strtoupper, TAINT);
-POST_HOOK_FUNCTION(str_pad, TAINT);
-POST_HOOK_FUNCTION(strstr, TAINT);
-POST_HOOK_FUNCTION(stristr, TAINT);
-POST_HOOK_FUNCTION(substr, TAINT);
-POST_HOOK_FUNCTION(dirname, TAINT);
-POST_HOOK_FUNCTION(basename, TAINT);
+POST_HOOK_FUNCTION_PRIORITY(strval, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(explode, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(implode, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(join, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(trim, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(ltrim, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(rtrim, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(strtolower, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(strtoupper, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(str_pad, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(strstr, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(stristr, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(substr, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(dirname, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(basename, TAINT, PriorityType::pZero);
 
-OPENRASP_HOOK_FUNCTION(str_replace, taint)
+OPENRASP_HOOK_FUNCTION_PRIORITY(array_walk_recursive, TAINT, PriorityType::pZero)
+{
+    HashTable *array;
+    zval *userdata = NULL;
+    zend_fcall_info orig_array_walk_fci;
+    zend_fcall_info_cache orig_array_walk_fci_cache;
+
+    orig_array_walk_fci = BG(array_walk_fci);
+    orig_array_walk_fci_cache = BG(array_walk_fci_cache);
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "Hf|z/", &array, &BG(array_walk_fci), &BG(array_walk_fci_cache), &userdata) == FAILURE)
+    {
+        BG(array_walk_fci) = orig_array_walk_fci;
+        BG(array_walk_fci_cache) = orig_array_walk_fci_cache;
+        return;
+    }
+
+    openrasp_array_walk(array, userdata, 1 TSRMLS_CC);
+    BG(array_walk_fci) = orig_array_walk_fci;
+    BG(array_walk_fci_cache) = orig_array_walk_fci_cache;
+    RETURN_TRUE;
+}
+
+OPENRASP_HOOK_FUNCTION_PRIORITY(str_replace, TAINT, PriorityType::pZero)
 {
     bool type_ignored = openrasp_check_type_ignored(TAINT TSRMLS_CC);
     zval *origin_subject = nullptr;
@@ -94,7 +118,7 @@ OPENRASP_HOOK_FUNCTION(str_replace, taint)
     }
 }
 
-OPENRASP_HOOK_FUNCTION(str_ireplace, taint)
+OPENRASP_HOOK_FUNCTION_PRIORITY(str_ireplace, TAINT, PriorityType::pZero)
 {
     bool type_ignored = openrasp_check_type_ignored(TAINT TSRMLS_CC);
     zval *origin_subject = nullptr;
@@ -135,7 +159,7 @@ OPENRASP_HOOK_FUNCTION(str_ireplace, taint)
 #ifdef sprintf
 #undef sprintf
 #endif
-OPENRASP_HOOK_FUNCTION(sprintf, taint)
+OPENRASP_HOOK_FUNCTION_PRIORITY(sprintf, TAINT, PriorityType::pZero)
 {
     bool type_ignored = openrasp_check_type_ignored(TAINT TSRMLS_CC);
     static bool processing = false;
@@ -162,7 +186,7 @@ OPENRASP_HOOK_FUNCTION(sprintf, taint)
 #define sprintf php_sprintf
 #endif
 
-OPENRASP_HOOK_FUNCTION(vsprintf, taint)
+OPENRASP_HOOK_FUNCTION_PRIORITY(vsprintf, TAINT, PriorityType::pZero)
 {
     bool type_ignored = openrasp_check_type_ignored(TAINT TSRMLS_CC);
     static bool processing = false;
@@ -1588,4 +1612,147 @@ void post_global_basename_TAINT(OPENRASP_INTERNAL_FUNCTION_PARAMETERS)
             openrasp_taint_mark(return_value, new NodeSequence(ns_base) TSRMLS_CC);
         }
     }
+}
+
+int openrasp_array_walk(HashTable *target_hash, zval *userdata, int recursive TSRMLS_DC)
+{
+    zval **args[3],         /* Arguments to userland function */
+        *retval_ptr = NULL, /* Return value - unused */
+            *key = NULL;    /* Entry key */
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION <= 4)
+    char *string_key;
+    uint string_key_len;
+    ulong num_key;
+#endif
+
+    /* Set up known arguments */
+    args[1] = &key;
+    args[2] = &userdata;
+    if (userdata)
+    {
+        Z_ADDREF_P(userdata);
+    }
+
+    BG(array_walk_fci).retval_ptr_ptr = &retval_ptr;
+    BG(array_walk_fci).param_count = userdata ? 3 : 2;
+    BG(array_walk_fci).params = args;
+    BG(array_walk_fci).no_separation = 0;
+
+    /* Iterate through hash */
+    zend_hash_internal_pointer_reset(target_hash);
+    while (!EG(exception) && zend_hash_get_current_data(target_hash, (void **)&args[0]) == SUCCESS)
+    {
+        if (recursive && Z_TYPE_PP(args[0]) == IS_ARRAY)
+        {
+            HashTable *thash;
+            zend_fcall_info orig_array_walk_fci;
+            zend_fcall_info_cache orig_array_walk_fci_cache;
+            zval *z_origin = nullptr;
+            if (!PZVAL_IS_REF(*args[0]) && Z_REFCOUNT_PP(args[0]) > 1)
+            {
+                z_origin = *args[0];
+            }
+            SEPARATE_ZVAL_IF_NOT_REF(args[0]);
+            if (z_origin)
+            {
+                openrasp_taint_deep_copy(z_origin, *args[0] TSRMLS_CC);
+            }
+            thash = Z_ARRVAL_PP(args[0]);
+            if (thash->nApplyCount > 1)
+            {
+                php_error_docref(NULL TSRMLS_CC, E_WARNING, "recursion detected");
+                if (userdata)
+                {
+                    zval_ptr_dtor(&userdata);
+                }
+                return 0;
+            }
+
+            /* backup the fcall info and cache */
+            orig_array_walk_fci = BG(array_walk_fci);
+            orig_array_walk_fci_cache = BG(array_walk_fci_cache);
+
+            thash->nApplyCount++;
+            openrasp_array_walk(thash, userdata, recursive TSRMLS_CC);
+            thash->nApplyCount--;
+
+            /* restore the fcall info and cache */
+            BG(array_walk_fci) = orig_array_walk_fci;
+            BG(array_walk_fci_cache) = orig_array_walk_fci_cache;
+        }
+        else
+        {
+#if (PHP_MAJOR_VERSION == 5) && (PHP_MINOR_VERSION <= 4)
+            /* Allocate space for key */
+            MAKE_STD_ZVAL(key);
+
+            /* Set up the key */
+            switch (zend_hash_get_current_key_ex(target_hash, &string_key, &string_key_len, &num_key, 0, NULL))
+            {
+            case HASH_KEY_IS_LONG:
+                Z_TYPE_P(key) = IS_LONG;
+                Z_LVAL_P(key) = num_key;
+                break;
+            case HASH_KEY_IS_STRING:
+                ZVAL_STRINGL(key, string_key, string_key_len - 1, 1);
+                break;
+            }
+#else
+            /* Allocate space for key */
+            MAKE_STD_ZVAL(key);
+            zend_hash_get_current_key_zval(target_hash, key);
+
+#endif
+            zend_uint i;
+            for (i = 0; i < BG(array_walk_fci).param_count; i++)
+            {
+                if (ARG_SHOULD_BE_SENT_BY_REF(BG(array_walk_fci_cache).function_handler, i + 1))
+                {
+                    if (!PZVAL_IS_REF(*(BG(array_walk_fci).params[i])) && Z_REFCOUNT_PP(BG(array_walk_fci).params[i]) > 1)
+                    {
+                        zval *origin_param = *(BG(array_walk_fci).params[i]);
+                        zval *new_zval;
+                        ALLOC_ZVAL(new_zval);
+                        *new_zval = **(BG(array_walk_fci).params[i]);
+                        zval_copy_ctor(new_zval);
+                        Z_SET_REFCOUNT_P(new_zval, 1);
+                        Z_DELREF_PP(BG(array_walk_fci).params[i]);
+                        *(BG(array_walk_fci).params[i]) = new_zval;
+                        openrasp_taint_deep_copy(origin_param, *(BG(array_walk_fci).params[i])TSRMLS_CC);
+                    }
+                    Z_SET_ISREF_PP(BG(array_walk_fci).params[i]);
+                }
+            }
+            /* Call the userland function */
+            if (zend_call_function(&BG(array_walk_fci), &BG(array_walk_fci_cache) TSRMLS_CC) == SUCCESS)
+            {
+                if (retval_ptr)
+                {
+                    zval_ptr_dtor(&retval_ptr);
+                }
+            }
+            else
+            {
+                if (key)
+                {
+                    zval_ptr_dtor(&key);
+                    key = NULL;
+                }
+                break;
+            }
+        }
+
+        if (key)
+        {
+            zval_ptr_dtor(&key);
+            key = NULL;
+        }
+        zend_hash_move_forward(target_hash);
+    }
+
+    if (userdata)
+    {
+        zval_ptr_dtor(&userdata);
+    }
+    return 0;
 }

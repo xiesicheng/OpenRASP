@@ -35,28 +35,28 @@ static void taint_formatted_print(zend_execute_data *execute_data, int use_array
 /**
  * taint 相关hook点
  */
-POST_HOOK_FUNCTION(strval, TAINT);
-POST_HOOK_FUNCTION(explode, TAINT);
-POST_HOOK_FUNCTION(implode, TAINT);
-POST_HOOK_FUNCTION(join, TAINT);
-POST_HOOK_FUNCTION(trim, TAINT);
-POST_HOOK_FUNCTION(ltrim, TAINT);
-POST_HOOK_FUNCTION(rtrim, TAINT);
-POST_HOOK_FUNCTION(strtolower, TAINT);
-POST_HOOK_FUNCTION(strtoupper, TAINT);
-POST_HOOK_FUNCTION(str_pad, TAINT);
-POST_HOOK_FUNCTION(strstr, TAINT);
-POST_HOOK_FUNCTION(stristr, TAINT);
-POST_HOOK_FUNCTION(substr, TAINT);
-POST_HOOK_FUNCTION(dirname, TAINT);
-POST_HOOK_FUNCTION(basename, TAINT);
-POST_HOOK_FUNCTION(str_replace, TAINT);
-POST_HOOK_FUNCTION(str_ireplace, TAINT);
+POST_HOOK_FUNCTION_PRIORITY(strval, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(explode, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(implode, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(join, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(trim, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(ltrim, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(rtrim, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(strtolower, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(strtoupper, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(str_pad, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(strstr, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(stristr, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(substr, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(dirname, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(basename, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(str_replace, TAINT, PriorityType::pZero);
+POST_HOOK_FUNCTION_PRIORITY(str_ireplace, TAINT, PriorityType::pZero);
 
 #ifdef sprintf
 #undef sprintf
 #endif
-OPENRASP_HOOK_FUNCTION(sprintf, taint)
+OPENRASP_HOOK_FUNCTION_PRIORITY(sprintf, TAINT, PriorityType::pZero)
 {
     bool type_ignored = openrasp_check_type_ignored(TAINT);
     static bool processing = false;
@@ -83,7 +83,7 @@ OPENRASP_HOOK_FUNCTION(sprintf, taint)
 #define sprintf php_sprintf
 #endif
 
-OPENRASP_HOOK_FUNCTION(vsprintf, taint)
+OPENRASP_HOOK_FUNCTION_PRIORITY(vsprintf, TAINT, PriorityType::pZero)
 {
     bool type_ignored = openrasp_check_type_ignored(TAINT);
     static bool processing = false;

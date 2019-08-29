@@ -124,7 +124,7 @@ namespace PriorityType
 {
 enum HookPriority
 {
-    pZero = 0,
+    pZero = 0, //use for taint
     pFirst = 1,
     pNormal = 2,
     pTotal = 3
