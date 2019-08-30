@@ -2766,10 +2766,12 @@ void openrasp_taint_mark(zval *zv, NodeSequence *ptr TSRMLS_DC)
 
 bool openrasp_taint_possible(zval *zv)
 {
+    TSRMLS_FETCH();
     return nullptr != zv &&
            Z_TYPE_P(zv) == IS_STRING &&
            Z_STRLEN_P(zv) &&
-           *((unsigned *)(Z_STRVAL_P(zv) + Z_STRLEN_P(zv) + OPENRASP_TAINT_POINTER_LENGTH + 1)) == OPENRASP_TAINT_MAGIC_POSSIBLE;
+           *((unsigned *)(Z_STRVAL_P(zv) + Z_STRLEN_P(zv) + OPENRASP_TAINT_POINTER_LENGTH + 1)) == OPENRASP_TAINT_MAGIC_POSSIBLE &&
+           OPENRASP_G(sequenceManager).existSequence(*((NodeSequence **)(Z_STRVAL_P(zv) + Z_STRLEN_P(zv) + 1)));
 }
 
 NodeSequence openrasp_taint_sequence(zval *zv)

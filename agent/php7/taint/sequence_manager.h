@@ -1,19 +1,20 @@
 #pragma once
 #include "node_sequence.h"
-#include <vector>
+#include <set>
 
 namespace taint
 {
 class SequenceManager
 {
 private:
-  std::vector<NodeSequence *> sequences;
+  std::set<NodeSequence *> sequences;
 
 public:
   SequenceManager() = default;
   SequenceManager(const SequenceManager &src) = delete;
   virtual ~SequenceManager();
-  void registerSequence(NodeSequence *nodeSequence);
-  void clear();
+  virtual void registerSequence(NodeSequence *nodeSequence);
+  virtual bool existSequence(NodeSequence *nodeSequence);
+  virtual void clear();
 };
 } // namespace taint

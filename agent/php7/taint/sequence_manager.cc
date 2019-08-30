@@ -11,7 +11,13 @@ SequenceManager::~SequenceManager()
 
 void SequenceManager::registerSequence(NodeSequence *nodeSequence)
 {
-  sequences.push_back(nodeSequence);
+  sequences.insert(nodeSequence);
+}
+
+bool SequenceManager::existSequence(NodeSequence *nodeSequence)
+{
+  auto found = sequences.find(nodeSequence);
+  return found != sequences.end();
 }
 
 void SequenceManager::clear()
