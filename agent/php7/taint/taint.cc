@@ -507,7 +507,8 @@ bool openrasp_taint_possible(zval *zv)
            Z_TYPE_P(zv) == IS_STRING &&
            Z_STRLEN_P(zv) &&
            *((unsigned *)(Z_STRVAL_P(zv) + Z_STRLEN_P(zv) + OPENRASP_TAINT_POINTER_LENGTH + 1)) == OPENRASP_TAINT_MAGIC_POSSIBLE &&
-           OPENRASP_G(sequenceManager).existSequence(*((NodeSequence **)(Z_STRVAL_P(zv) + Z_STRLEN_P(zv) + 1)));;
+           OPENRASP_G(sequenceManager).existSequence(*((NodeSequence **)(Z_STRVAL_P(zv) + Z_STRLEN_P(zv) + 1)));
+    ;
 }
 
 bool openrasp_taint_possible(zend_string *zs)
@@ -974,8 +975,28 @@ int openrasp_concat_handler(zend_execute_data *execute_data)
     NodeSequence ns;
     if (openrasp_taint_possible(op1) || openrasp_taint_possible(op2))
     {
-        ns.append(openrasp_taint_sequence(op1));
-        ns.append(openrasp_taint_sequence(op2));
+        zval op1_copy, op2_copy;
+        int use_copy1 = 0, use_copy2 = 0;
+        use_copy1 = zend_make_printable_zval(op1, &op1_copy);
+        if (use_copy1)
+        {
+            ns.append(openrasp_taint_sequence(&op1_copy));
+            zval_dtor(&op1_copy);
+        }
+        else
+        {
+            ns.append(openrasp_taint_sequence(op1));
+        }
+        use_copy2 = zend_make_printable_zval(op2, &op2_copy);
+        if (use_copy2)
+        {
+            ns.append(openrasp_taint_sequence(&op2_copy));
+            zval_dtor(&op2_copy);
+        }
+        else
+        {
+            ns.append(openrasp_taint_sequence(op2));
+        }
     }
 
     concat_function(result, op1, op2);

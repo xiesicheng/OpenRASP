@@ -658,8 +658,28 @@ int openrasp_concat_handler(ZEND_OPCODE_HANDLER_ARGS)
     NodeSequence ns;
     if (is_op1_tainted_string || is_op2_tainted_string)
     {
-        ns.append(openrasp_taint_sequence(op1));
-        ns.append(openrasp_taint_sequence(op2));
+        zval op1_copy, op2_copy;
+        int use_copy1 = 0, use_copy2 = 0;
+        zend_make_printable_zval(op1, &op1_copy, &use_copy1);
+        if (use_copy1)
+        {
+            ns.append(openrasp_taint_sequence(&op1_copy));
+            zval_dtor(&op1_copy);
+        }
+        else
+        {
+            ns.append(openrasp_taint_sequence(op1));
+        }
+        zend_make_printable_zval(op2, &op2_copy, &use_copy2);
+        if (use_copy2)
+        {
+            ns.append(openrasp_taint_sequence(&op2_copy));
+            zval_dtor(&op2_copy);
+        }
+        else
+        {
+            ns.append(openrasp_taint_sequence(op2));
+        }
     }
 
     concat_function(result, op1, op2 TSRMLS_CC);
