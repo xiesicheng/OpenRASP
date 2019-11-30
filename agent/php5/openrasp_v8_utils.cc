@@ -405,4 +405,39 @@ std::vector<std::string> extract_string_array(Isolate *isolate, const std::strin
     return default_value;
 }
 
+std::string extract_string(Isolate *isolate, const std::string &value, const std::string &default_value)
+{
+    if (nullptr != isolate)
+    {
+        std::string script = R"(
+        (function () 
+        {
+            try {
+                    if (typeof )" +
+                             value + R"( === 'string')
+                    {
+                        return )" +
+                             value + R"(
+                    }
+                } catch (_) {}
+        })()
+        )";
+        v8::HandleScope handle_scope(isolate);
+        auto context = isolate->GetCurrentContext();
+        auto rst = isolate->ExecScript(script, "extract_string_" + value);
+        if (!rst.IsEmpty())
+        {
+            v8::HandleScope handle_scope(isolate);
+            auto v8_value = rst.ToLocalChecked();
+            if (!v8_value.IsEmpty() && v8_value->IsString())
+            {
+                v8::Local<v8::String> v8_result = v8_value.As<v8::String>();
+                v8::String::Utf8Value value(isolate, v8_result);
+                return std::string(*value, value.length());
+            }
+        }
+    }
+    return default_value;
+}
+
 } // namespace openrasp
