@@ -29,6 +29,7 @@ extern "C"
 #include "openrasp_v8.h"
 #include "openrasp_hook.h"
 #include "openrasp_ini.h"
+#include "openrasp_output_detect.h"
 #include "agent/shared_config_manager.h"
 #ifdef HAVE_OPENRASP_REMOTE_MANAGER
 #include "agent/openrasp_agent_manager.h"
