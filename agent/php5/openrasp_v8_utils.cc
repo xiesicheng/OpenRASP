@@ -405,6 +405,40 @@ std::vector<std::string> extract_string_array(Isolate *isolate, const std::strin
     return default_value;
 }
 
+int64_t extract_int64(Isolate *isolate, const std::string &value, const int64_t &default_value)
+{
+    if (nullptr != isolate)
+    {
+        std::string script = R"(
+        (function () 
+        {
+            try {
+                    if (Number.isInteger()" +
+                             value + R"())
+                    {
+                        return )" +
+                             value + R"(
+                    }
+                } catch (_) {}
+        })()
+        )";
+        v8::HandleScope handle_scope(isolate);
+        auto context = isolate->GetCurrentContext();
+        auto rst = isolate->ExecScript(script, "extract_int64_" + value);
+        if (!rst.IsEmpty())
+        {
+            v8::HandleScope handle_scope(isolate);
+            auto v8_value = rst.ToLocalChecked();
+            if (!v8_value.IsEmpty() && v8_value->IsInt32())
+            {
+                v8::Local<v8::Integer> v8_result = v8_value.As<v8::Integer>();
+                return v8_result->Value();
+            }
+        }
+    }
+    return default_value;
+}
+
 std::string extract_string(Isolate *isolate, const std::string &value, const std::string &default_value)
 {
     if (nullptr != isolate)

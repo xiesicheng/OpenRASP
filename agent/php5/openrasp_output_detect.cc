@@ -170,7 +170,7 @@ static int _detect_param_occur_in_html_output(const char *param, OpenRASPActionT
         }
         if (_gpc_parameter_filter(*ele_value TSRMLS_CC))
         {
-            if (++count > OPENRASP_CONFIG(xss.max_detection_num))
+            if (++count > OUTPUT_G(max_detection_num))
             {
                 continue;
             }

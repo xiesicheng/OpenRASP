@@ -31,6 +31,7 @@ extern "C"
 
 ZEND_BEGIN_MODULE_GLOBALS(openrasp_output_detect)
 bool output_detect;
+int64_t max_detection_num = 10;
 ZEND_END_MODULE_GLOBALS(openrasp_output_detect)
 
 ZEND_EXTERN_MODULE_GLOBALS(openrasp_output_detect);

@@ -40,6 +40,7 @@ void extract_buildin_action(Isolate *isolate, std::map<std::string, std::string>
 std::vector<int64_t> extract_int64_array(Isolate *isolate, const std::string &value, int limit, const std::vector<long> &default_value = std::vector<int64_t>());
 std::vector<std::string> extract_string_array(Isolate *isolate, const std::string &value, int limit, const std::vector<std::string> &default_value = std::vector<std::string>());
 std::string extract_string(Isolate *isolate, const std::string &value, const std::string &default_value);
+int64_t extract_int64(Isolate *isolate, const std::string &value, const int64_t &default_value);
 void load_plugins();
 void plugin_log(const std::string &message);
 } // namespace openrasp
