@@ -319,14 +319,13 @@ std::vector<int64_t> extract_int64_array(Isolate *isolate, const std::string &va
     if (nullptr != isolate)
     {
         std::string script = R"(
-        (function () {
-            var result = undefined
+        (function () 
+        {
             try {
-                    result = )" +
+                    return )" +
                              value + R"(.filter(value => typeof value === 'number');
                 } catch (_) {}
-                return result
-            })()
+        })()
         )";
         v8::HandleScope handle_scope(isolate);
         auto context = isolate->GetCurrentContext();
@@ -334,21 +333,29 @@ std::vector<int64_t> extract_int64_array(Isolate *isolate, const std::string &va
         if (!rst.IsEmpty())
         {
             std::vector<int64_t> result;
-            auto arr = rst.ToLocalChecked().As<v8::Array>();
-            auto len = arr->Length();
-            if (len > limit)
+            auto v8_arr = rst.ToLocalChecked();
+            if (!v8_arr.IsEmpty() && v8_arr->IsArray())
             {
-                openrasp_error(LEVEL_WARNING, PLUGIN_ERROR,
-                               _("Size of %s must <= %d."), value.c_str(), limit);
+                auto arr = v8_arr.As<v8::Array>();
+                auto len = arr->Length();
+                if (len > limit)
+                {
+                    openrasp_error(LEVEL_WARNING, PLUGIN_ERROR,
+                                   _("Size of %s must <= %d."), value.c_str(), limit);
+                }
+                for (size_t i = 0; i < len; i++)
+                {
+                    v8::HandleScope handle_scope(isolate);
+                    auto item = arr->Get(context, i).ToLocalChecked();
+                    if (!item.IsEmpty() && item->IsInt32())
+                    {
+                        v8::Local<v8::Integer> err_code_local = item.As<v8::Integer>();
+                        int64_t err_code = err_code_local->Value();
+                        result.push_back(err_code);
+                    }
+                }
+                return result;
             }
-            for (size_t i = 0; i < len; i++)
-            {
-                v8::HandleScope handle_scope(isolate);
-                v8::Local<v8::Integer> err_code_local = arr->Get(context, i).ToLocalChecked().As<v8::Integer>();
-                int64_t err_code = err_code_local->Value();
-                result.push_back(err_code);
-            }
-            return result;
         }
     }
     return default_value;
