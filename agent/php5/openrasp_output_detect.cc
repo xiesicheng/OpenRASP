@@ -206,6 +206,9 @@ static bool _is_content_type_html(TSRMLS_D)
 static void openrasp_output_detect_init_globals(zend_openrasp_output_detect_globals *openrasp_output_detect_globals)
 {
     openrasp_output_detect_globals->output_detect = false;
+    openrasp_output_detect_globals->min_param_length = 15;
+    openrasp_output_detect_globals->max_detection_num = 10;
+    openrasp_output_detect_globals->filter_regex = "";
 }
 
 PHP_MINIT_FUNCTION(openrasp_output_detect)
