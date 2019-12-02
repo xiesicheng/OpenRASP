@@ -441,8 +441,8 @@ int64_t extract_int64(Isolate *isolate, const std::string &value, const int64_t 
 
 std::string extract_string(Isolate *isolate, const std::string &value, const std::string &default_value)
 {
-    if (nullptr != isolate)
-    {
+    // if (nullptr != isolate)
+    // {
         // std::string script = R"(
         // (function () 
         // {
@@ -470,7 +470,7 @@ std::string extract_string(Isolate *isolate, const std::string &value, const std
             //     return std::string(*value, value.length());
             // }
         // }
-    }
+    // }
     return default_value;
 }
 

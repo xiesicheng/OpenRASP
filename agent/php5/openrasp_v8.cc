@@ -192,7 +192,7 @@ PHP_RINIT_FUNCTION(openrasp_v8)
 
                     OPENRASP_HOOK_G(callable_blacklist) = extract_string_array(isolate, "RASP.algorithmConfig.webshell_callable.functions", 100, default_callable_blacklist);
                     OPENRASP_HOOK_G(echo_filter_regex) = extract_string(isolate, "RASP.algorithmConfig.xss_echo.filter_regex", default_echo_filter_regex);
-                    // OUTPUT_G(filter_regex) = extract_string(isolate, "RASP.algorithmConfig.xss_userinput.filter_regex", default_filter_regex);
+                    OUTPUT_G(filter_regex) = extract_string(isolate, "RASP.algorithmConfig.xss_userinput.filter_regex", default_filter_regex);
                     OUTPUT_G(min_param_length) = extract_int64(isolate, "RASP.algorithmConfig.xss_userinput.min_length", default_min_param_length);
                     OUTPUT_G(max_detection_num) = extract_int64(isolate, "RASP.algorithmConfig.xss_userinput.max_detection_num", default_max_detection_num);
                 }
