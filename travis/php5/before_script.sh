@@ -1,7 +1,5 @@
 #!/bin/bash
 set -ev
-
-ulimit -c unlimited -S
 #mysql
 mysql -e "CREATE USER 'openrasp'@'%' IDENTIFIED BY '123456'";
 mysql -e "USE mysql;UPDATE user SET password=PASSWORD('rasp#2019') WHERE user='root';FLUSH PRIVILEGES;";
@@ -62,5 +60,5 @@ popd
 pushd agent/$OPENRASP_LANG
 phpenv config-rm xdebug.ini || true
 phpenv config-rm ext-opcache.ini || true
-phpize && ./configure --with-openrasp-v8=$TRAVIS_BUILD_DIR/openrasp-v8 --with-gettext --enable-openrasp-remote-manager --enable-cli-support && make -j2
+phpize && ./configure --with-openrasp-v8=$TRAVIS_BUILD_DIR/openrasp-v8 --with-gettext --enable-openrasp-remote-manager --enable-cli-support && make -j4
 popd
