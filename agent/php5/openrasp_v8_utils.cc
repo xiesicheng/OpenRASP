@@ -461,14 +461,14 @@ std::string extract_string(Isolate *isolate, const std::string &value, const std
         auto rst = isolate->ExecScript(script, "extract_string_" + value);
         if (!rst.IsEmpty())
         {
-            v8::HandleScope handle_scope(isolate);
-            auto v8_value = rst.ToLocalChecked();
-            if (!v8_value.IsEmpty() && v8_value->IsString())
-            {
-                v8::Local<v8::String> v8_result = v8_value.As<v8::String>();
-                v8::String::Utf8Value value(isolate, v8_result);
-                return std::string(*value, value.length());
-            }
+            // v8::HandleScope handle_scope(isolate);
+            // auto v8_value = rst.ToLocalChecked();
+            // if (!v8_value.IsEmpty() && v8_value->IsString())
+            // {
+            //     v8::Local<v8::String> v8_result = v8_value.As<v8::String>();
+            //     v8::String::Utf8Value value(isolate, v8_result);
+            //     return std::string(*value, value.length());
+            // }
         }
     }
     return default_value;
