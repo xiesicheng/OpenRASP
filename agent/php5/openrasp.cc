@@ -310,8 +310,8 @@ PHP_RINIT_FUNCTION(openrasp)
         result = PHP_RINIT(openrasp_inject)(INIT_FUNC_ARGS_PASSTHRU);
         result = PHP_RINIT(openrasp_log)(INIT_FUNC_ARGS_PASSTHRU);
         result = PHP_RINIT(openrasp_hook)(INIT_FUNC_ARGS_PASSTHRU);
-        result = PHP_RINIT(openrasp_v8)(INIT_FUNC_ARGS_PASSTHRU);
         result = PHP_RINIT(openrasp_output_detect)(INIT_FUNC_ARGS_PASSTHRU);
+        result = PHP_RINIT(openrasp_v8)(INIT_FUNC_ARGS_PASSTHRU);
 #ifdef HAVE_OPENRASP_REMOTE_MANAGER
         if (remote_active && openrasp::oam)
         {
